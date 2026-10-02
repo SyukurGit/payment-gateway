@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -29,7 +30,7 @@ func APIKeyAuth(db *database.DB) gin.HandlerFunc {
 func AdminAuth(adminKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := c.GetHeader("X-Admin-Key")
-		if key == "" || key != adminKey {
+		if key == "" || subtle.ConstantTimeCompare([]byte(key), []byte(adminKey)) != 1 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized admin"})
 			return
 		}

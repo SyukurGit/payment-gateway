@@ -1,6 +1,7 @@
 package database
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -361,7 +362,7 @@ func (d *DB) VerifyPIN(pin string) bool {
 	var storedPin string
 	err := d.db.QueryRow(`SELECT value FROM config WHERE key = 'dashboard_pin'`).Scan(&storedPin)
 	if err != nil || storedPin == "" {
-		return pin == "2207"
+		storedPin = "2207"
 	}
-	return pin == storedPin
+	return subtle.ConstantTimeCompare([]byte(pin), []byte(storedPin)) == 1
 }

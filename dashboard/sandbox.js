@@ -16,6 +16,16 @@ let allSandboxOrders = [];
 let allSandboxApps = [];
 let autoRefreshTimer = null;
 
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // Initialize on Load
 document.addEventListener("DOMContentLoaded", () => {
   checkLockScreen();
@@ -215,30 +225,30 @@ function renderOrdersTable() {
     return `
       <tr>
         <td>
-          <div style="font-weight: 700; color: var(--text-main); font-family: monospace;">${o.id}</div>
-          <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${o.reference_id || '-'}</div>
+          <div style="font-weight: 700; color: var(--text-main); font-family: monospace;">${escapeHtml(o.id)}</div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${escapeHtml(o.reference_id || '-')}</div>
         </td>
         <td class="font-mono">Rp ${Number(o.original_amount).toLocaleString("id-ID")}</td>
-        <td><span style="color: #d97706; font-weight: 700; font-family: monospace;">+${o.unique_code}</span></td>
+        <td><span style="color: #d97706; font-weight: 700; font-family: monospace;">+${escapeHtml(o.unique_code)}</span></td>
         <td><b class="font-mono" style="font-size: 14px; color: var(--text-main);">Rp ${Number(o.total_amount).toLocaleString("id-ID")}</b></td>
-        <td><span class="badge ${badgeClass}">${o.status}</span></td>
-        <td><code class="font-mono" style="font-size: 11px; color: var(--text-muted);">${o.shopee_tx_id || '-'}</code></td>
-        <td style="font-size: 11.5px; color: var(--text-muted);">${dateFormatted}</td>
+        <td><span class="badge ${badgeClass}">${escapeHtml(o.status)}</span></td>
+        <td><code class="font-mono" style="font-size: 11px; color: var(--text-muted);">${escapeHtml(o.shopee_tx_id || '-')}</code></td>
+        <td style="font-size: 11.5px; color: var(--text-muted);">${escapeHtml(dateFormatted)}</td>
         <td style="text-align: right;">
           <div style="display: inline-flex; gap: 6px; justify-content: flex-end; align-items: center;">
             ${o.status === 'PENDING' ? `
-              <button class="btn btn-pay-simulator btn-sm" onclick="simulatePay('${o.id}', this)" title="Simulasikan pembayaran lunas seketika">
+              <button class="btn btn-pay-simulator btn-sm" onclick="simulatePay('${escapeHtml(o.id)}', this)" title="Simulasikan pembayaran lunas seketika">
                 💳 Bayar Sekarang
               </button>
-              <button class="btn btn-secondary btn-sm" onclick="showQRModal('${o.id}', ${o.total_amount}, '${o.status}')">
+              <button class="btn btn-secondary btn-sm" onclick="showQRModal('${escapeHtml(o.id)}', ${Number(o.total_amount)}, '${escapeHtml(o.status)}')">
                 QR
               </button>
-              <button class="btn btn-secondary btn-sm" style="color: var(--danger);" onclick="cancelSandboxOrder('${o.id}')" title="Batalkan">
+              <button class="btn btn-secondary btn-sm" style="color: var(--danger);" onclick="cancelSandboxOrder('${escapeHtml(o.id)}')" title="Batalkan">
                 ✕
               </button>
             ` : `
               <span style="color: #10b981; font-size: 12px; font-weight: 700;">✓ Lunas (Simulasi)</span>
-              <button class="btn btn-secondary btn-xs" onclick="showQRModal('${o.id}', ${o.total_amount}, '${o.status}')">
+              <button class="btn btn-secondary btn-xs" onclick="showQRModal('${escapeHtml(o.id)}', ${Number(o.total_amount)}, '${escapeHtml(o.status)}')">
                 Detail
               </button>
             `}
@@ -333,25 +343,25 @@ async function loadSandboxApps() {
   tbody.innerHTML = allSandboxApps.map(a => `
     <tr>
       <td>
-        <div style="font-weight: 800; color: var(--text-main);">${a.name}</div>
-        <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${a.id}</div>
+        <div style="font-weight: 800; color: var(--text-main);">${escapeHtml(a.name)}</div>
+        <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${escapeHtml(a.id)}</div>
       </td>
       <td>
         <div class="table-key-pill">
-          <code class="font-mono">${a.api_key}</code>
-          <button class="btn btn-secondary btn-xs" title="Salin API Key" onclick="copyToClipboard('${a.api_key}', this)">📋</button>
+          <code class="font-mono">${escapeHtml(a.api_key)}</code>
+          <button class="btn btn-secondary btn-xs" title="Salin API Key" onclick="copyToClipboard('${escapeHtml(a.api_key)}', this)">📋</button>
         </div>
       </td>
       <td>
-        <span style="font-size: 11.5px; font-family: monospace; color: var(--text-muted);" title="${a.webhook_url}">
-          ${a.webhook_url.length > 36 ? a.webhook_url.substring(0, 36) + '...' : a.webhook_url}
+        <span style="font-size: 11.5px; font-family: monospace; color: var(--text-muted);" title="${escapeHtml(a.webhook_url)}">
+          ${escapeHtml(a.webhook_url.length > 36 ? a.webhook_url.substring(0, 36) + '...' : a.webhook_url)}
         </span>
       </td>
       <td>
         <span class="badge badge-paid">Aktif Sandbox</span>
       </td>
       <td style="text-align: right;">
-        <button class="btn btn-danger btn-xs" onclick="deleteSandboxApp('${a.id}')">Hapus</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteSandboxApp('${escapeHtml(a.id)}')">Hapus</button>
       </td>
     </tr>
   `).join("");

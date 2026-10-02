@@ -56,40 +56,53 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	now := time.Now().UTC()
 	expiresAt := now.Add(duration)
 
-	uniqueCode, err := service.GenerateUniqueCode(h.db, req.Amount)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "failed to generate unique code"})
+	var order model.Order
+	var created bool
+	var lastErr error
+
+	for attempt := 0; attempt < 3; attempt++ {
+		uniqueCode, err := service.GenerateUniqueCode(h.db, req.Amount)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		totalAmount := req.Amount + int64(uniqueCode)
+		qrisString, err := h.qris.Generate(totalAmount)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		order = model.Order{
+			ID:             util.NewID(),
+			AppID:          app.ID,
+			ReferenceID:    req.ReferenceID,
+			OriginalAmount: req.Amount,
+			UniqueCode:     uniqueCode,
+			TotalAmount:    totalAmount,
+			Status:         model.StatusPending,
+			QRString:       qrisString,
+			ExpiresAt:      expiresAt.Format(time.RFC3339),
+			CreatedAt:      now.Format(time.RFC3339),
+			UpdatedAt:      now.Format(time.RFC3339),
+			Metadata:       req.Metadata,
+		}
+
+		if err := h.db.CreateOrder(&order); err == nil {
+			created = true
+			break
+		} else {
+			lastErr = err
+		}
+	}
+
+	if !created {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "failed to create order: " + lastErr.Error()})
 		return
 	}
 
-	totalAmount := req.Amount + int64(uniqueCode)
-	qrisString, err := h.qris.Generate(totalAmount)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "failed to generate QRIS string"})
-		return
-	}
-
-	order := model.Order{
-		ID:             util.NewID(),
-		AppID:          app.ID,
-		ReferenceID:    req.ReferenceID,
-		OriginalAmount: req.Amount,
-		UniqueCode:     uniqueCode,
-		TotalAmount:    totalAmount,
-		Status:         model.StatusPending,
-		QRString:       qrisString,
-		ExpiresAt:      expiresAt.Format(time.RFC3339),
-		CreatedAt:      now.Format(time.RFC3339),
-		UpdatedAt:      now.Format(time.RFC3339),
-		Metadata:       req.Metadata,
-	}
-
-	if err := h.db.CreateOrder(&order); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "failed to create order"})
-		return
-	}
-
-	qrBytes, err := h.qris.GenerateQRImage(totalAmount, 300)
+	qrBytes, err := h.qris.GenerateQRImage(order.TotalAmount, 300)
 	if err == nil {
 		qrDir := filepath.Join(h.cfg.DataDir, "qr")
 		os.MkdirAll(qrDir, 0755)

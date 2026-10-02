@@ -44,9 +44,13 @@ func (m *Matcher) MatchTransactions(transactions []model.ShopeeTransaction) (int
 		if err == nil && order != nil {
 			// Timing check: transaction create time should not be older than order creation (allow 60s clock skew)
 			if tx.CreateTime > 0 {
+				txTimeSec := tx.CreateTime
+				if txTimeSec > 1e11 { // Handle milliseconds epoch if provided by API
+					txTimeSec = txTimeSec / 1000
+				}
 				orderTime, parseErr := time.Parse(time.RFC3339, order.CreatedAt)
-				if parseErr == nil && tx.CreateTime < (orderTime.Unix()-60) {
-					log.Printf("[Matcher] Skipping TX %s (created %d): older than order %s created time %d", tx.TransactionID, tx.CreateTime, order.ID, orderTime.Unix())
+				if parseErr == nil && txTimeSec < (orderTime.Unix()-60) {
+					log.Printf("[Matcher] Skipping TX %s (created %d): older than order %s created time %d", tx.TransactionID, txTimeSec, order.ID, orderTime.Unix())
 					m.db.SaveProcessedTransaction(tx.TransactionID, amount, "")
 					continue
 				}
