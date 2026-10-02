@@ -130,6 +130,10 @@ func main() {
 		r.HEAD("/sandbox", sandboxPage)
 		r.GET("/sandbox/", sandboxPage)
 		r.HEAD("/sandbox/", sandboxPage)
+
+		// Static files for sandbox relative asset requests
+		r.StaticFile("/sandbox/style.css", "./dashboard/style.css")
+		r.StaticFile("/sandbox/sandbox.js", "./dashboard/sandbox.js")
 	}
 
 	// Public routes

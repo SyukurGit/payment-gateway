@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // 0. PIN Access Gate (Session Auth)
 // ==========================================
 function checkLockScreen() {
-  const isUnlocked = sessionStorage.getItem("paymentg_sandbox_unlocked") === "true";
+  const isUnlocked = sessionStorage.getItem("paymentg_unlocked") === "true" || sessionStorage.getItem("paymentg_sandbox_unlocked") === "true";
   const lockOverlay = document.getElementById("pin-lockscreen");
 
   if (!isUnlocked) {
@@ -63,6 +63,7 @@ async function submitPIN(e) {
 
     if (res.ok && json.success) {
       sessionStorage.setItem("paymentg_sandbox_unlocked", "true");
+      sessionStorage.setItem("paymentg_unlocked", "true");
       if (json.data && json.data.admin_key) {
         CONFIG.ADMIN_KEY = json.data.admin_key;
         localStorage.setItem("paymentg_admin_key", json.data.admin_key);
@@ -78,6 +79,7 @@ async function submitPIN(e) {
   } catch (err) {
     if (pin === "2207") {
       sessionStorage.setItem("paymentg_sandbox_unlocked", "true");
+      sessionStorage.setItem("paymentg_unlocked", "true");
       document.getElementById("pin-lockscreen").style.display = "none";
       initSandbox();
     } else {
@@ -349,7 +351,7 @@ async function loadSandboxApps() {
         <span class="badge badge-paid">Aktif Sandbox</span>
       </td>
       <td style="text-align: right;">
-        <button class="btn btn-danger btn-xs" onclick="deleteSandboxApp('${a.id}', '${a.name}')">Hapus</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteSandboxApp('${a.id}')">Hapus</button>
       </td>
     </tr>
   `).join("");
@@ -401,7 +403,9 @@ function copyEnvSnippet(btn) {
   copyToClipboard(code, btn);
 }
 
-async function deleteSandboxApp(id, name) {
+async function deleteSandboxApp(id) {
+  const app = allSandboxApps.find(x => x.id === id);
+  const name = app ? app.name : "toko testing ini";
   if (!confirm(`Hapus toko testing "${name}"?`)) return;
   const res = await apiRequest(`/api/sandbox/apps/${id}`, "DELETE");
   if (res.ok) {
@@ -484,7 +488,10 @@ function showQRModal(orderId, totalAmount, status = "PENDING") {
   const statusElem = document.getElementById("modal-qr-status");
   if (statusElem) {
     statusElem.innerText = status;
-    statusElem.className = `badge ${status === 'PAID' ? 'badge-paid' : 'badge-pending'}`;
+    let badgeClass = "badge-pending";
+    if (status === 'PAID') badgeClass = "badge-paid";
+    else if (status === 'CANCELLED') badgeClass = "badge-cancelled";
+    statusElem.className = `badge ${badgeClass}`;
   }
 
   modal.classList.add("active");

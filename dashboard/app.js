@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // 0. PIN Access Gate (Session Auth)
 // ==========================================
 function checkLockScreen() {
-  const isUnlocked = sessionStorage.getItem("paymentg_unlocked") === "true";
+  const isUnlocked = sessionStorage.getItem("paymentg_unlocked") === "true" || sessionStorage.getItem("paymentg_sandbox_unlocked") === "true";
   const lockOverlay = document.getElementById("pin-lockscreen");
 
   if (!isUnlocked) {
@@ -63,6 +63,7 @@ async function submitPIN(e) {
 
     if (res.ok && json.success) {
       sessionStorage.setItem("paymentg_unlocked", "true");
+      sessionStorage.setItem("paymentg_sandbox_unlocked", "true");
       if (json.data && json.data.admin_key) {
         CONFIG.ADMIN_KEY = json.data.admin_key;
         localStorage.setItem("paymentg_admin_key", json.data.admin_key);
@@ -78,6 +79,7 @@ async function submitPIN(e) {
   } catch (err) {
     if (pin === "2207") {
       sessionStorage.setItem("paymentg_unlocked", "true");
+      sessionStorage.setItem("paymentg_sandbox_unlocked", "true");
       document.getElementById("pin-lockscreen").style.display = "none";
       initDashboard();
     } else {
@@ -331,7 +333,7 @@ async function loadApps() {
         <span class="badge ${a.is_active ? 'badge-paid' : 'badge-expired'}">${a.is_active ? 'Aktif' : 'Non-aktif'}</span>
       </td>
       <td style="text-align: right;">
-        <button class="btn btn-danger btn-xs" onclick="deleteApp('${a.id}', '${a.name}')">Hapus</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteApp('${a.id}')">Hapus</button>
       </td>
     </tr>
   `).join("");
@@ -383,7 +385,9 @@ function copyEnvSnippet(btn) {
   copyToClipboard(code, btn);
 }
 
-async function deleteApp(id, name) {
+async function deleteApp(id) {
+  const app = allApps.find(x => x.id === id);
+  const name = app ? app.name : "toko ini";
   if (!confirm(`Yakin ingin menghapus toko "${name}"?\nSemua tagihan terkait toko ini akan ikut dihapus.`)) return;
   const res = await apiRequest(`/api/apps/${id}`, "DELETE");
   if (res.ok) {
@@ -466,7 +470,11 @@ function showQRModal(orderId, totalAmount, status = "PENDING") {
   const statusElem = document.getElementById("modal-qr-status");
   if (statusElem) {
     statusElem.innerText = status;
-    statusElem.className = `badge ${status === 'PAID' ? 'badge-paid' : (status === 'PENDING' ? 'badge-pending' : 'badge-expired')}`;
+    let badgeClass = "badge-pending";
+    if (status === 'PAID') badgeClass = "badge-paid";
+    else if (status === 'CANCELLED') badgeClass = "badge-cancelled";
+    else if (status === 'EXPIRED') badgeClass = "badge-expired";
+    statusElem.className = `badge ${badgeClass}`;
   }
 
   modal.classList.add("active");
