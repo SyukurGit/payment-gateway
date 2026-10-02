@@ -22,39 +22,146 @@
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background-color: var(--bg-main);
   color: var(--text-main);
   min-height: 100vh;
+  position: relative;
 }
 
-/* Navbar */
+/* =========================================
+   1. PIN Lockscreen Overlay
+   ========================================= */
+.lockscreen-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.lockscreen-card {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 380px;
+  padding: 32px 24px;
+  text-align: center;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: fadeInScale 0.3s ease;
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.lockscreen-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin: 0 auto 16px;
+}
+
+.lockscreen-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.lockscreen-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.pin-input-group {
+  margin-bottom: 20px;
+}
+
+.pin-input {
+  width: 100%;
+  padding: 14px;
+  font-size: 24px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 8px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.pin-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(238, 77, 45, 0.12);
+}
+
+.pin-btn {
+  width: 100%;
+  padding: 14px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.pin-btn:hover {
+  background: var(--primary-hover);
+}
+
+.pin-error {
+  font-size: 13px;
+  color: var(--danger);
+  margin-top: 12px;
+  display: none;
+}
+
+/* =========================================
+   2. Navbar (Mobile Friendly)
+   ========================================= */
 .navbar {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 50;
-  padding: 0 24px;
+  padding: 0 16px;
 }
 
 .nav-container {
   max-width: 1200px;
   margin: 0 auto;
-  height: 64px;
+  min-height: 60px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 18px;
-  font-weight: 700;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 800;
   color: var(--primary);
   text-decoration: none;
 }
@@ -62,21 +169,21 @@ body {
 .brand-badge {
   background: var(--primary-light);
   color: var(--primary);
-  font-size: 11px;
-  padding: 3px 8px;
+  font-size: 10px;
+  padding: 2px 7px;
   border-radius: 6px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .nav-status {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .status-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
 }
@@ -88,54 +195,52 @@ body {
 .nav-settings-btn {
   background: none;
   border: 1px solid var(--border);
-  padding: 7px 14px;
+  padding: 6px 12px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
+  gap: 5px;
 }
 
-.nav-settings-btn:hover {
-  background: #f1f5f9;
-  color: var(--text-main);
-}
-
-/* Tabs */
+/* =========================================
+   3. Tabs Bar (Horizontal Scroll on Mobile)
+   ========================================= */
 .tabs-bar {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
-  padding: 0 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tabs-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .tabs-container {
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
-  gap: 8px;
+  padding: 0 16px;
+  white-space: nowrap;
 }
 
 .tab-btn {
   background: none;
   border: none;
-  padding: 14px 18px;
-  font-size: 14px;
+  padding: 13px 14px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
-  display: flex;
+  border-bottom: 2.5px solid transparent;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-}
-
-.tab-btn:hover {
-  color: var(--text-main);
+  gap: 6px;
 }
 
 .tab-btn.active {
@@ -143,11 +248,67 @@ body {
   border-bottom-color: var(--primary);
 }
 
-/* Main Layout */
+/* =========================================
+   4. Health & Session Alert Banner
+   ========================================= */
+.health-banner {
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border: 1.5px solid transparent;
+}
+
+.health-banner.connected {
+  background: var(--success-bg);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #065f46;
+}
+
+.health-banner.disconnected {
+  background: var(--danger-bg);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #991b1b;
+}
+
+.health-banner.warning {
+  background: var(--warning-bg);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #92400e;
+}
+
+.health-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.health-icon-large {
+  font-size: 28px;
+}
+
+.health-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.health-subtitle {
+  font-size: 12.5px;
+  opacity: 0.9;
+}
+
+/* =========================================
+   5. Layout & Cards
+   ========================================= */
 .container {
   max-width: 1200px;
-  margin: 28px auto;
-  padding: 0 24px;
+  margin: 20px auto;
+  padding: 0 16px;
 }
 
 .tab-content {
@@ -158,73 +319,81 @@ body {
   display: block;
 }
 
-/* Cards & Stats */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
-  margin-bottom: 28px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
 }
 
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 22px;
+  padding: 18px;
   box-shadow: var(--shadow);
 }
 
 .stat-label {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  margin-bottom: 6px;
 }
 
 .stat-value {
-  font-size: 26px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 800;
   color: var(--text-main);
 }
 
 .stat-desc {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-muted);
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
-/* Tables */
+/* =========================================
+   6. Table & Search Controls
+   ========================================= */
 .table-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.table-controls-left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 600px;
 }
 
 .search-input {
-  padding: 9px 14px;
+  flex: 1;
+  min-width: 180px;
+  padding: 9px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  font-size: 14px;
-  min-width: 260px;
+  font-size: 13.5px;
 }
 
 .filter-select {
-  padding: 9px 14px;
+  padding: 9px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13.5px;
   background: #fff;
-  cursor: pointer;
 }
 
 .table-responsive {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--bg-card);
@@ -232,27 +401,25 @@ body {
 
 table {
   width: 100%;
+  min-width: 680px;
   border-collapse: collapse;
   text-align: left;
-  font-size: 13.5px;
+  font-size: 13px;
 }
 
 th {
   background: #f8fafc;
-  padding: 12px 16px;
+  padding: 10px 14px;
   font-weight: 600;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 td {
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
-}
-
-tr:last-child td {
-  border-bottom: none;
 }
 
 tr:hover td {
@@ -263,10 +430,10 @@ tr:hover td {
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 700;
 }
 
 .badge-paid { background: var(--success-bg); color: var(--success); }
@@ -276,9 +443,9 @@ tr:hover td {
 
 /* Buttons */
 .btn {
-  padding: 9px 16px;
+  padding: 8px 14px;
   border-radius: 8px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   border: none;
@@ -286,34 +453,34 @@ tr:hover td {
   align-items: center;
   gap: 6px;
   transition: all 0.2s;
+  min-height: 38px;
 }
 
 .btn-primary { background: var(--primary); color: #fff; }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-secondary { background: #f1f5f9; color: var(--text-main); border: 1px solid var(--border); }
 .btn-secondary:hover { background: #e2e8f0; }
-.btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+.btn-sm { padding: 4px 8px; font-size: 11.5px; min-height: 28px; border-radius: 6px; }
 
 /* Forms */
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .form-label {
   display: block;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   color: #334155;
 }
 
 .form-input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 9px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  font-size: 14px;
-  transition: border-color 0.2s;
+  font-size: 13.5px;
 }
 
 .form-input:focus {
@@ -323,24 +490,21 @@ tr:hover td {
 }
 
 .form-help {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-muted);
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
-/* Modal */
+/* Modals */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(15, 23, 42, 0.5);
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
   display: none;
   align-items: center;
   justify-content: center;
   z-index: 100;
-  padding: 20px;
+  padding: 16px;
 }
 
 .modal-overlay.active {
@@ -351,8 +515,8 @@ tr:hover td {
   background: #fff;
   border-radius: 16px;
   width: 100%;
-  max-width: 520px;
-  padding: 24px;
+  max-width: 480px;
+  padding: 22px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
@@ -360,43 +524,73 @@ tr:hover td {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .modal-title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
 }
 
 .modal-close {
   background: none;
   border: none;
-  font-size: 20px;
+  font-size: 22px;
   cursor: pointer;
   color: var(--text-muted);
 }
 
-/* QR Card in Generator */
+/* QR Code Box */
 .qr-preview-box {
   text-align: center;
-  padding: 24px;
-  border: 1px dashed var(--border);
+  padding: 20px;
+  border: 1.5px dashed var(--border);
   border-radius: var(--radius);
   background: #fafbfc;
 }
 
 .qr-image {
-  width: 240px;
-  height: 240px;
-  margin: 14px auto;
+  width: 220px;
+  height: 220px;
+  max-width: 100%;
+  margin: 12px auto;
   display: block;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
 }
 
 .qr-amount-large {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
   color: var(--primary);
-  margin: 8px 0;
+  margin: 6px 0;
+}
+
+/* =========================================
+   7. Mobile Responsive Specific Rules (< 640px)
+   ========================================= */
+@media (max-width: 640px) {
+  .nav-container {
+    padding: 8px 0;
+  }
+  .brand {
+    font-size: 16px;
+  }
+  .nav-settings-btn {
+    padding: 5px 8px;
+    font-size: 11.5px;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .health-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .table-controls-left {
+    flex-direction: column;
+    width: 100%;
+  }
+  .search-input, .filter-select {
+    width: 100%;
+  }
 }
