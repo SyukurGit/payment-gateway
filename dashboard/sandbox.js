@@ -1,25 +1,31 @@
 /**
  * PaymentG — Dedicated Sandbox Frontend App
+ * Pure Vanilla JS, zero build dependencies.
  */
 
+// 1. Configuration & Host Auto-Detection
 const DEFAULT_BACKEND = window.location.protocol.startsWith("http") ? window.location.origin : "http://localhost:3200";
 
 const CONFIG = {
   API_URL: localStorage.getItem("paymentg_api_url") || DEFAULT_BACKEND,
-  ADMIN_KEY: localStorage.getItem("paymentg_admin_key") || "adm_secret_paymentg_2026",
-  API_KEY: localStorage.getItem("paymentg_sandbox_api_key") || ""
+  ADMIN_KEY: localStorage.getItem("paymentg_admin_key") || "adm_secret_paymentg_2026"
 };
 
+// Global State
 let allSandboxOrders = [];
+let allSandboxApps = [];
 let autoRefreshTimer = null;
 
+// Initialize on Load
 document.addEventListener("DOMContentLoaded", () => {
   checkLockScreen();
   setupTabs();
   setupSettingsModal();
 });
 
-// --- 0. PIN Access Gate ---
+// ==========================================
+// 0. PIN Access Gate (Session Auth)
+// ==========================================
 function checkLockScreen() {
   const isUnlocked = sessionStorage.getItem("paymentg_sandbox_unlocked") === "true";
   const lockOverlay = document.getElementById("pin-lockscreen");
@@ -27,7 +33,7 @@ function checkLockScreen() {
   if (!isUnlocked) {
     if (lockOverlay) lockOverlay.style.display = "flex";
     const field = document.getElementById("pin-field");
-    if (field) setTimeout(() => field.focus(), 100);
+    if (field) setTimeout(() => field.focus(), 150);
   } else {
     if (lockOverlay) lockOverlay.style.display = "none";
     initSandbox();
@@ -86,6 +92,7 @@ async function submitPIN(e) {
 
 function initSandbox() {
   loadAllSandboxData();
+
   const autoCheckbox = document.getElementById("auto-refresh-toggle");
   if (autoCheckbox) {
     autoCheckbox.addEventListener("change", (e) => {
@@ -96,7 +103,9 @@ function initSandbox() {
   }
 }
 
-// --- 1. Tabs Navigation ---
+// ==========================================
+// 1. Navigation Tabs
+// ==========================================
 function setupTabs() {
   document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -113,16 +122,15 @@ function setupTabs() {
   });
 }
 
-// --- 2. API Helper ---
-async function apiRequest(endpoint, method = "GET", body = null, useAdminKey = true) {
+// ==========================================
+// 2. HTTP API Client Helper
+// ==========================================
+async function apiRequest(endpoint, method = "GET", body = null) {
   const url = `${CONFIG.API_URL}${endpoint}`;
-  const headers = { "Content-Type": "application/json" };
-
-  if (useAdminKey && CONFIG.ADMIN_KEY) {
-    headers["X-Admin-Key"] = CONFIG.ADMIN_KEY;
-  } else if (!useAdminKey && CONFIG.API_KEY) {
-    headers["X-API-Key"] = CONFIG.API_KEY;
-  }
+  const headers = { 
+    "Content-Type": "application/json",
+    "X-Admin-Key": CONFIG.ADMIN_KEY
+  };
 
   const options = { method, headers };
   if (body) options.body = JSON.stringify(body);
@@ -137,7 +145,9 @@ async function apiRequest(endpoint, method = "GET", body = null, useAdminKey = t
   }
 }
 
-// --- 3. Data Loaders ---
+// ==========================================
+// 3. Data Loaders
+// ==========================================
 async function loadAllSandboxData() {
   await loadSandboxOrders();
   await loadSandboxStats();
@@ -145,7 +155,7 @@ async function loadAllSandboxData() {
 }
 
 async function loadSandboxStats() {
-  const res = await apiRequest("/api/sandbox/stats", "GET", null, true);
+  const res = await apiRequest("/api/sandbox/stats", "GET");
   if (res.ok && res.data.success) {
     const s = res.data.data;
     document.getElementById("stat-revenue").innerText = "Rp " + Number(s.total_revenue || 0).toLocaleString("id-ID");
@@ -155,13 +165,16 @@ async function loadSandboxStats() {
   }
 }
 
+// ==========================================
+// 4. Mutasi Transaksi & Simulator
+// ==========================================
 async function loadSandboxOrders() {
   const tbody = document.getElementById("sandbox-orders-tbody");
   if (!tbody) return;
 
-  const res = await apiRequest("/api/sandbox/orders?limit=100", "GET", null, true);
+  const res = await apiRequest("/api/sandbox/orders?limit=100", "GET");
   if (!res.ok || !res.data.success) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger);">Gagal memuat data sandbox. Periksa server API.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat data sandbox. Periksa server API.</td></tr>`;
     return;
   }
 
@@ -171,6 +184,8 @@ async function loadSandboxOrders() {
 
 function renderOrdersTable() {
   const tbody = document.getElementById("sandbox-orders-tbody");
+  if (!tbody) return;
+
   const filterStatus = document.getElementById("filter-status") ? document.getElementById("filter-status").value : "ALL";
   const search = document.getElementById("search-order") ? document.getElementById("search-order").value.toLowerCase().trim() : "";
 
@@ -184,7 +199,7 @@ function renderOrdersTable() {
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">Belum ada pesanan testing di sandbox.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 32px;">Belum ada pesanan testing di sandbox. Lakukan checkout di web toko Anda!</td></tr>`;
     return;
   }
 
@@ -198,26 +213,32 @@ function renderOrdersTable() {
     return `
       <tr>
         <td>
-          <div style="font-weight: 700; color: var(--text-main);">${o.id}</div>
-          <div style="font-size: 11px; color: var(--text-muted);">${o.reference_id || '-'}</div>
+          <div style="font-weight: 700; color: var(--text-main); font-family: monospace;">${o.id}</div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${o.reference_id || '-'}</div>
         </td>
-        <td>Rp ${Number(o.original_amount).toLocaleString("id-ID")}</td>
-        <td><span style="color: var(--sandbox-accent); font-weight: 700;">+${o.unique_code}</span></td>
-        <td><b style="font-size: 14px;">Rp ${Number(o.total_amount).toLocaleString("id-ID")}</b></td>
+        <td class="font-mono">Rp ${Number(o.original_amount).toLocaleString("id-ID")}</td>
+        <td><span style="color: #d97706; font-weight: 700; font-family: monospace;">+${o.unique_code}</span></td>
+        <td><b class="font-mono" style="font-size: 14px; color: var(--text-main);">Rp ${Number(o.total_amount).toLocaleString("id-ID")}</b></td>
         <td><span class="badge ${badgeClass}">${o.status}</span></td>
-        <td><code style="font-size: 11px; color: var(--text-muted);">${o.shopee_tx_id || '-'}</code></td>
+        <td><code class="font-mono" style="font-size: 11px; color: var(--text-muted);">${o.shopee_tx_id || '-'}</code></td>
         <td style="font-size: 11.5px; color: var(--text-muted);">${dateFormatted}</td>
-        <td>
-          <div style="display: flex; gap: 6px; align-items: center;">
+        <td style="text-align: right;">
+          <div style="display: inline-flex; gap: 6px; justify-content: flex-end; align-items: center;">
             ${o.status === 'PENDING' ? `
-              <button class="btn btn-pay-simulator btn-sm" onclick="simulatePay('${o.id}')" title="Simulasikan pembayaran lunas seketika">
+              <button class="btn btn-pay-simulator btn-sm" onclick="simulatePay('${o.id}', this)" title="Simulasikan pembayaran lunas seketika">
                 💳 Bayar Sekarang
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="showQRModal('${o.id}', ${o.total_amount}, '${o.status}')">
+                QR
               </button>
               <button class="btn btn-secondary btn-sm" style="color: var(--danger);" onclick="cancelSandboxOrder('${o.id}')" title="Batalkan">
                 ✕
               </button>
             ` : `
-              <span style="color: var(--primary); font-size: 12px; font-weight: 700;">✓ Lunas</span>
+              <span style="color: #10b981; font-size: 12px; font-weight: 700;">✓ Lunas (Simulasi)</span>
+              <button class="btn btn-secondary btn-xs" onclick="showQRModal('${o.id}', ${o.total_amount}, '${o.status}')">
+                Detail
+              </button>
             `}
           </div>
         </td>
@@ -226,20 +247,24 @@ function renderOrdersTable() {
   }).join("");
 }
 
-// --- 4. Simulator Action (Pay Now) ---
-async function simulatePay(orderId) {
-  const btn = event ? event.target : null;
-  if (btn) {
-    btn.disabled = true;
-    btn.innerText = "Memproses...";
+// --- Simulator Action: 1-Click Pay Now ---
+async function simulatePay(orderId, btnElement) {
+  if (btnElement) {
+    btnElement.disabled = true;
+    btnElement.innerText = "Memproses...";
   }
 
-  const res = await apiRequest(`/api/sandbox/orders/${orderId}/pay`, "POST", {}, true);
+  const res = await apiRequest(`/api/sandbox/orders/${orderId}/pay`, "POST", {});
+
+  if (btnElement) {
+    btnElement.disabled = false;
+    btnElement.innerText = "💳 Bayar Sekarang";
+  }
 
   if (res.ok && res.data.success) {
     const data = res.data.data;
     
-    // Tampilkan Webhook Inspector
+    // Tampilkan Webhook Inspector Card
     const inspector = document.getElementById("webhook-inspector-box");
     const badge = document.getElementById("webhook-status-badge");
     const details = document.getElementById("webhook-details");
@@ -250,103 +275,81 @@ async function simulatePay(orderId) {
         badge.className = "badge badge-paid";
         badge.innerText = "WEBHOOK SUKSES TERKIRIM (200 OK)";
         details.innerHTML = `
-          <div><b>Order ID:</b> <code>${data.order.id}</code> | <b>Tx ID:</b> <code>${data.order.shopee_tx_id}</code></div>
-          <div style="color: var(--primary); margin-top: 4px;">🎉 Notifikasi Webhook berhasil ditembakkan ke web toko Anda! Database toko Anda sekarang harusnya sudah berstatus LUNAS.</div>
+          <div><b>Order ID:</b> <code>${data.order.id}</code> | <b>Simulasi Tx ID:</b> <code>${data.order.shopee_tx_id}</code></div>
+          <div style="color: #065f46; margin-top: 4px; font-weight: 600;">🎉 Notifikasi Webhook berhasil diterima web toko Anda! Database toko Anda sekarang telah lunas.</div>
         `;
       } else {
         badge.className = "badge badge-expired";
         badge.innerText = "WEBHOOK GAGAL / REFUSED";
         details.innerHTML = `
           <div><b>Order ID:</b> <code>${data.order.id}</code></div>
-          <div style="color: var(--danger); margin-top: 4px;">⚠️ Gagal mengirim webhook ke toko: <code>${data.webhook_error || 'Target web toko tidak merespons'}</code></div>
-          <div style="font-size: 11px; margin-top: 2px;">Pastikan server web toko Anda sedang aktif dan URL Webhook di tab "Kelola App Sandbox" sudah benar.</div>
+          <div style="color: var(--danger); margin-top: 4px; font-weight: 600;">⚠️ Gagal mengirim webhook ke web toko: <code>${data.webhook_error || 'Target web toko tidak merespons'}</code></div>
+          <div style="font-size: 11.5px; margin-top: 2px;">Pastikan server web toko Anda aktif dan URL Webhook di tab "Kelola Web Toko Sandbox" sudah benar.</div>
         `;
       }
+      inspector.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
+    showToast("🎉 Pembayaran simulasi sukses & webhook ditembak!");
     loadAllSandboxData();
-    alert(`🎉 Simulasi Pembayaran Sukses!\n\nOrder: ${data.order.id}\nNominal: Rp ${Number(data.order.total_amount).toLocaleString("id-ID")}\nWebhook: ${data.webhook_sent ? 'Terkirim ✓' : 'Gagal (' + data.webhook_error + ')'}`);
   } else {
     alert("Gagal simulasi pembayaran: " + (res.data ? res.data.error : res.error));
-  }
-
-  if (btn) {
-    btn.disabled = false;
-    btn.innerText = "💳 Bayar Sekarang";
   }
 }
 
 async function cancelSandboxOrder(orderId) {
   if (!confirm(`Batalkan pesanan testing ${orderId}?`)) return;
-  const res = await apiRequest(`/api/sandbox/orders/${orderId}/cancel`, "POST", {}, false);
+  const res = await apiRequest(`/api/sandbox/orders/${orderId}/cancel`, "POST", {});
   if (res.ok && res.data.success) {
+    showToast(`Order ${orderId} dibatalkan.`);
     loadAllSandboxData();
   } else {
     alert("Gagal membatalkan order.");
   }
 }
 
-// --- 5. Generate QRIS Sandbox ---
-async function submitCreateSandboxOrder(event) {
-  event.preventDefault();
-  const btn = document.getElementById("btn-generate-order");
-  const amount = parseInt(document.getElementById("gen-amount").value);
-  const refId = document.getElementById("gen-ref-id").value.trim() || ("SBX-" + Date.now());
-  const expiry = parseInt(document.getElementById("gen-expiry").value) || 15;
-
-  btn.disabled = true;
-  btn.innerText = "Membuat QRIS Sandbox...";
-
-  const res = await apiRequest("/api/sandbox/orders", "POST", {
-    amount: amount,
-    reference_id: refId,
-    expiry_minutes: expiry
-  }, false);
-
-  btn.disabled = false;
-  btn.innerText = "Generate QRIS Sandbox";
-
-  if (res.ok && res.data.success) {
-    const order = res.data.data;
-    const box = document.getElementById("qr-result-box");
-    box.style.display = "block";
-    document.getElementById("qr-res-img").src = `${CONFIG.API_URL}${order.qr_url}`;
-    document.getElementById("qr-res-total").innerText = "Rp " + Number(order.total_amount).toLocaleString("id-ID");
-
-    const quickPayBtn = document.getElementById("btn-quick-pay-now");
-    quickPayBtn.onclick = () => simulatePay(order.order_id);
-
-    loadAllSandboxData();
-  } else {
-    alert("Gagal membuat order sandbox: " + (res.data ? res.data.error : res.error) + "\n\nPastikan Anda sudah membuat App Sandbox di tab 'Kelola App Sandbox'!");
-  }
-}
-
-// --- 6. Apps Management ---
+// ==========================================
+// 5. Kelola Web Toko Sandbox (Tab Apps)
+// ==========================================
 async function loadSandboxApps() {
   const tbody = document.getElementById("sandbox-apps-tbody");
   if (!tbody) return;
 
-  const res = await apiRequest("/api/sandbox/apps", "GET", null, true);
+  const res = await apiRequest("/api/sandbox/apps", "GET");
   if (!res.ok || !res.data.success) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger);">Gagal memuat daftar app sandbox.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat daftar app sandbox.</td></tr>`;
     return;
   }
 
-  const apps = res.data.data || [];
-  if (apps.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">Belum ada app sandbox yang didaftarkan.</td></tr>`;
+  allSandboxApps = res.data.data || [];
+
+  if (allSandboxApps.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">Belum ada web toko testing yang didaftarkan. Gunakan form di sebelah kiri untuk membuat.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = apps.map(a => `
+  tbody.innerHTML = allSandboxApps.map(a => `
     <tr>
-      <td><b>${a.name}</b></td>
-      <td><code>${a.api_key}</code></td>
-      <td style="font-size: 11.5px;">${a.webhook_url}</td>
-      <td><span class="badge badge-paid">Aktif Sandbox</span></td>
       <td>
-        <button class="btn btn-secondary btn-sm" style="color: var(--danger);" onclick="deleteSandboxApp('${a.id}')">Hapus</button>
+        <div style="font-weight: 800; color: var(--text-main);">${a.name}</div>
+        <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${a.id}</div>
+      </td>
+      <td>
+        <div class="table-key-pill">
+          <code class="font-mono">${a.api_key}</code>
+          <button class="btn btn-secondary btn-xs" title="Salin API Key" onclick="copyToClipboard('${a.api_key}', this)">📋</button>
+        </div>
+      </td>
+      <td>
+        <span style="font-size: 11.5px; font-family: monospace; color: var(--text-muted);" title="${a.webhook_url}">
+          ${a.webhook_url.length > 36 ? a.webhook_url.substring(0, 36) + '...' : a.webhook_url}
+        </span>
+      </td>
+      <td>
+        <span class="badge badge-paid">Aktif Sandbox</span>
+      </td>
+      <td style="text-align: right;">
+        <button class="btn btn-danger btn-xs" onclick="deleteSandboxApp('${a.id}', '${a.name}')">Hapus</button>
       </td>
     </tr>
   `).join("");
@@ -358,31 +361,196 @@ async function submitCreateSandboxApp(event) {
   const webhook = document.getElementById("app-webhook").value.trim();
   if (!name || !webhook) return;
 
-  const res = await apiRequest("/api/sandbox/apps", "POST", { name, webhook_url: webhook }, true);
+  const btn = document.getElementById("btn-create-app");
+  btn.disabled = true;
+  btn.innerText = "Mendaftarkan Toko Testing...";
+
+  const res = await apiRequest("/api/sandbox/apps", "POST", { name, webhook_url: webhook });
+  btn.disabled = false;
+  btn.innerHTML = `<span>➕</span> Dapatkan API Key Sandbox`;
+
   if (res.ok && res.data.success) {
     const created = res.data.data;
-    CONFIG.API_KEY = created.api_key;
-    localStorage.setItem("paymentg_sandbox_api_key", created.api_key);
-    alert(`App Sandbox berhasil dibuat!\n\nAPI Key: ${created.api_key}\nWebhook Secret: ${created.webhook_secret}\n\nKredensial otomatis tersimpan di sandbox dashboard!`);
+
+    // Populate Modal
+    document.getElementById("created-modal-name").innerText = created.name;
+    document.getElementById("created-modal-apikey").value = created.api_key;
+
+    const envSnippet = 
+`# Konfigurasi PaymentG Sandbox (${created.name})
+PAYMENTG_API_URL=${CONFIG.API_URL}/api/sandbox
+PAYMENTG_API_KEY=${created.api_key}`;
+
+    document.getElementById("created-modal-env").innerText = envSnippet;
+
+    // Open Modal
+    document.getElementById("created-app-modal").classList.add("active");
+
+    // Reset Form
     document.getElementById("app-name").value = "";
     document.getElementById("app-webhook").value = "";
+
     loadSandboxApps();
   } else {
     alert("Gagal membuat app sandbox: " + (res.data ? res.data.error : res.error));
   }
 }
 
-async function deleteSandboxApp(id) {
-  if (!confirm("Hapus app sandbox ini?")) return;
-  const res = await apiRequest(`/api/sandbox/apps/${id}`, "DELETE", null, true);
+function copyEnvSnippet(btn) {
+  const code = document.getElementById("created-modal-env").innerText;
+  copyToClipboard(code, btn);
+}
+
+async function deleteSandboxApp(id, name) {
+  if (!confirm(`Hapus toko testing "${name}"?`)) return;
+  const res = await apiRequest(`/api/sandbox/apps/${id}`, "DELETE");
   if (res.ok) {
+    showToast("Toko sandbox berhasil dihapus!");
     loadSandboxApps();
   } else {
-    alert("Gagal menghapus app sandbox.");
+    alert("Gagal menghapus toko sandbox.");
   }
 }
 
-// Auto Refresh Control
+// ==========================================
+// 6. Clipboard & Toast Helpers
+// ==========================================
+function copyToClipboard(text, btnElement = null) {
+  if (!text) return;
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => {
+      onCopySuccess(btnElement);
+    }).catch(() => {
+      fallbackCopyText(text, btnElement);
+    });
+  } else {
+    fallbackCopyText(text, btnElement);
+  }
+}
+
+function fallbackCopyText(text, btnElement) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand("copy");
+    onCopySuccess(btnElement);
+  } catch (err) {
+    alert("Gagal menyalin. Silakan salin manual.");
+  }
+  document.body.removeChild(textarea);
+}
+
+function onCopySuccess(btnElement) {
+  showToast("📋 Berhasil disalin ke clipboard!");
+  if (btnElement) {
+    const originalText = btnElement.innerText;
+    btnElement.innerText = "✓";
+    setTimeout(() => {
+      btnElement.innerText = originalText;
+    }, 1500);
+  }
+}
+
+let toastTimer = null;
+function showToast(message) {
+  const toast = document.getElementById("toast");
+  const msgElem = document.getElementById("toast-message");
+  if (!toast) return;
+
+  msgElem.innerText = message;
+  toast.classList.add("active");
+
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("active");
+  }, 2600);
+}
+
+// ==========================================
+// 7. Modal QR Sandbox
+// ==========================================
+function showQRModal(orderId, totalAmount, status = "PENDING") {
+  const modal = document.getElementById("qr-modal");
+  document.getElementById("modal-qr-img").src = `${CONFIG.API_URL}/api/sandbox/orders/${orderId}/qr.png`;
+  document.getElementById("modal-qr-id").innerText = orderId;
+  document.getElementById("modal-qr-amount").innerText = "Rp " + Number(totalAmount).toLocaleString("id-ID");
+  
+  const statusElem = document.getElementById("modal-qr-status");
+  if (statusElem) {
+    statusElem.innerText = status;
+    statusElem.className = `badge ${status === 'PAID' ? 'badge-paid' : 'badge-pending'}`;
+  }
+
+  modal.classList.add("active");
+}
+
+// ==========================================
+// 8. Settings Modal
+// ==========================================
+function setupSettingsModal() {
+  const modal = document.getElementById("settings-modal");
+  const openBtn = document.getElementById("btn-open-settings");
+  const closeBtn = document.getElementById("btn-close-settings");
+
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      document.getElementById("setting-api-url").value = CONFIG.API_URL;
+      document.getElementById("setting-admin-key").value = CONFIG.ADMIN_KEY;
+      modal.classList.add("active");
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => modal.classList.remove("active"));
+  }
+
+  const saveBtn = document.getElementById("btn-save-settings");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      CONFIG.API_URL = document.getElementById("setting-api-url").value.trim().replace(/\/$/, "");
+      CONFIG.ADMIN_KEY = document.getElementById("setting-admin-key").value.trim();
+
+      localStorage.setItem("paymentg_api_url", CONFIG.API_URL);
+      localStorage.setItem("paymentg_admin_key", CONFIG.ADMIN_KEY);
+
+      modal.classList.remove("active");
+      showToast("Pengaturan Sandbox disimpan!");
+      loadAllSandboxData();
+    });
+  }
+}
+
+function togglePasswordVisibility(fieldId, btn) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  if (input.type === "password") {
+    input.type = "text";
+    btn.innerText = "🔒";
+  } else {
+    input.type = "password";
+    btn.innerText = "👁️";
+  }
+}
+
+function resetSettingsToDefault() {
+  if (!confirm("Kembalikan URL Backend ke asal (" + DEFAULT_BACKEND + ")?")) return;
+  document.getElementById("setting-api-url").value = DEFAULT_BACKEND;
+  document.getElementById("setting-admin-key").value = "adm_secret_paymentg_2026";
+  showToast("Pengaturan dikembalikan ke default");
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.remove("active");
+}
+
+// Auto Refresh Timers
 function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
   autoRefreshTimer = setInterval(() => {
@@ -394,41 +562,4 @@ function startAutoRefresh() {
 function stopAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
   autoRefreshTimer = null;
-}
-
-// Settings Modal
-function setupSettingsModal() {
-  const modal = document.getElementById("settings-modal");
-  const openBtn = document.getElementById("btn-open-settings");
-
-  if (openBtn) {
-    openBtn.addEventListener("click", () => {
-      document.getElementById("setting-api-url").value = CONFIG.API_URL;
-      document.getElementById("setting-admin-key").value = CONFIG.ADMIN_KEY;
-      document.getElementById("setting-api-key").value = CONFIG.API_KEY;
-      modal.classList.add("active");
-    });
-  }
-
-  const saveBtn = document.getElementById("btn-save-settings");
-  if (saveBtn) {
-    saveBtn.addEventListener("click", () => {
-      CONFIG.API_URL = document.getElementById("setting-api-url").value.trim().replace(/\/$/, "");
-      CONFIG.ADMIN_KEY = document.getElementById("setting-admin-key").value.trim();
-      CONFIG.API_KEY = document.getElementById("setting-api-key").value.trim();
-
-      localStorage.setItem("paymentg_api_url", CONFIG.API_URL);
-      localStorage.setItem("paymentg_admin_key", CONFIG.ADMIN_KEY);
-      localStorage.setItem("paymentg_sandbox_api_key", CONFIG.API_KEY);
-
-      modal.classList.remove("active");
-      loadAllSandboxData();
-      alert("Pengaturan API Sandbox berhasil disimpan!");
-    });
-  }
-}
-
-function closeModal(id) {
-  const modal = document.getElementById(id);
-  if (modal) modal.classList.remove("active");
 }
