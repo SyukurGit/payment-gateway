@@ -84,13 +84,6 @@ func (h *AdminHandler) ListApps(c *gin.Context) {
 		return
 	}
 
-	// Mask API Key
-	for i := range apps {
-		if len(apps[i].APIKey) > 8 {
-			apps[i].APIKey = apps[i].APIKey[:8] + "..."
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": apps})
 }
 

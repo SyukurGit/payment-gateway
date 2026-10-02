@@ -305,12 +305,6 @@ func (h *SandboxHandler) ListApps(c *gin.Context) {
 		return
 	}
 
-	for i := range apps {
-		if len(apps[i].APIKey) > 12 {
-			apps[i].APIKey = apps[i].APIKey[:12] + "..."
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": apps})
 }
 

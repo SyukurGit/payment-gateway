@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PaymentG — Dashboard Merchant QRIS</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -13,7 +16,9 @@
        ========================================== -->
   <div id="pin-lockscreen" class="lockscreen-overlay" style="display: none;">
     <div class="lockscreen-card">
-      <div class="lockscreen-icon">🔒</div>
+      <div class="lockscreen-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+      </div>
       <h2 class="lockscreen-title">PaymentG Dashboard</h2>
       <p class="lockscreen-desc">Masukkan PIN untuk membuka dashboard merchant</p>
 
@@ -21,7 +26,7 @@
         <div class="pin-input-group">
           <input type="password" id="pin-field" class="pin-input" maxlength="8" placeholder="••••" autofocus required inputmode="numeric">
         </div>
-        <button type="submit" id="btn-unlock-pin" class="pin-btn">Buka Akses</button>
+        <button type="submit" id="btn-unlock-pin" class="pin-btn">Buka Akses Dashboard</button>
         <div id="pin-error-msg" class="pin-error">PIN akses salah!</div>
       </form>
     </div>
@@ -33,19 +38,27 @@
   <header class="navbar">
     <div class="nav-container">
       <a href="#" class="brand">
-        <span>PaymentG</span>
-        <span class="brand-badge">ShopeePay</span>
+        <div class="brand-logo">PG</div>
+        <div class="brand-text">
+          <span class="brand-name">PaymentG</span>
+          <span class="brand-badge">ShopeePay Gateway</span>
+        </div>
       </a>
 
       <div class="nav-status">
-        <div id="server-status-badge" style="font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
-          <span class="status-dot offline"></span> Menghubungkan...
+        <div id="server-status-badge" class="status-pill">
+          <span class="status-dot offline"></span>
+          <span class="status-text">Menghubungkan...</span>
         </div>
-        <a href="/sandbox/" class="btn btn-secondary btn-sm" style="text-decoration: none; font-weight: 700; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">
-          🧪 Mode Sandbox
+
+        <a href="/sandbox/" class="btn-sandbox-link" title="Buka Mode Uji Coba Sandbox">
+          <span class="sandbox-icon">🧪</span>
+          <span class="hide-mobile">Mode</span> Sandbox
         </a>
+
         <button id="btn-open-settings" class="nav-settings-btn" title="Pengaturan Server API">
-          ⚙️ <span class="hide-mobile">Setting</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <span class="hide-mobile">Setting</span>
         </button>
       </div>
     </div>
@@ -56,15 +69,27 @@
        ========================================== -->
   <nav class="tabs-bar">
     <div class="tabs-container">
-      <button class="tab-btn active" data-tab="tab-dashboard">📊 Ringkasan</button>
-      <button class="tab-btn" data-tab="tab-orders">📜 Mutasi Transaksi</button>
-      <button class="tab-btn" data-tab="tab-generator">⚡ Buat QRIS</button>
-      <button class="tab-btn" data-tab="tab-apps">🔑 Kelola Web App</button>
+      <button class="tab-btn active" data-tab="tab-dashboard">
+        <span class="tab-icon">📊</span>
+        <span>Ringkasan</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-orders">
+        <span class="tab-icon">📜</span>
+        <span>Mutasi Transaksi</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-generator">
+        <span class="tab-icon">⚡</span>
+        <span>Buat QRIS</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-apps">
+        <span class="tab-icon">🔑</span>
+        <span>Kelola Toko & API</span>
+      </button>
     </div>
   </nav>
 
   <!-- ==========================================
-       3. Main Container
+       3. Main Content Container
        ========================================== -->
   <main class="container">
 
@@ -81,7 +106,7 @@
           </div>
         </div>
 
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <div class="banner-action-buttons">
           <button id="btn-playwright" class="btn btn-primary btn-sm" onclick="triggerPlaywrightRefresh()">
             🤖 Auto-Login Playwright
           </button>
@@ -96,38 +121,80 @@
 
       <!-- Stats Grid -->
       <div class="stats-grid">
-        <div class="card">
-          <div class="stat-label">Total Omset Lunas</div>
-          <div class="stat-value" id="stat-revenue" style="color: var(--primary);">Rp 0</div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Total Omset Lunas</span>
+            <span class="stat-icon-wrapper income">💰</span>
+          </div>
+          <div class="stat-value text-primary" id="stat-revenue">Rp 0</div>
           <div class="stat-desc">Akumulasi uang masuk terverifikasi</div>
         </div>
 
-        <div class="card">
-          <div class="stat-label">Transaksi Berhasil</div>
-          <div class="stat-value" id="stat-paid-count" style="color: var(--success);">0</div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Transaksi Berhasil</span>
+            <span class="stat-icon-wrapper success">✓</span>
+          </div>
+          <div class="stat-value text-success" id="stat-paid-count">0</div>
           <div class="stat-desc">Order otomatis dicocokkan</div>
         </div>
 
-        <div class="card">
-          <div class="stat-label">Menunggu Bayar (Pending)</div>
-          <div class="stat-value" id="stat-pending-count" style="color: var(--warning);">0</div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Menunggu Bayar (Pending)</span>
+            <span class="stat-icon-wrapper warning">⏳</span>
+          </div>
+          <div class="stat-value text-warning" id="stat-pending-count">0</div>
           <div class="stat-desc">QRIS aktif di web pembeli</div>
         </div>
 
-        <div class="card">
-          <div class="stat-label">Total Order Dibuat</div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <span class="stat-label">Total Order Dibuat</span>
+            <span class="stat-icon-wrapper total">🧾</span>
+          </div>
           <div class="stat-value" id="stat-total-orders">0</div>
           <div class="stat-desc">Termasuk lunas, pending, & batal</div>
         </div>
       </div>
 
-      <!-- Quick Tips -->
-      <div class="card" style="font-size: 13px; line-height: 1.6; color: var(--text-muted);">
-        <b>💡 Tips Menjaga Sesi ShopeePay:</b>
-        <ul style="padding-left: 20px; margin-top: 6px;">
-          <li>Sesi token ShopeePay biasanya aktif berhari-hari hingga berminggu-minggu selama akun tidak di-logout.</li>
-          <li>Jika banner di atas berubah menjadi <b style="color: var(--danger);">MERAH (Terputus)</b>, klik tombol <b>Auto-Login Playwright</b> atau tempel token baru.</li>
-          <li>Kapasitas kode unik 1–999 otomatis di-reset saat pesanan lunas atau kedaluwarsa 15 menit.</li>
+      <!-- Quick Integration Steps Card -->
+      <div class="card" style="margin-bottom: 20px;">
+        <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+          <span>🚀</span> Cara Memulai Integrasi Web Toko Anda:
+        </h3>
+        <div class="steps-flow">
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div class="step-text">
+              <div class="step-title">Daftarkan Web Toko</div>
+              <div class="step-desc">Buka tab <b>Kelola Toko & API</b>, masukkan nama toko dan URL webhook Anda.</div>
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div class="step-text">
+              <div class="step-title">Salin API Key & Secret</div>
+              <div class="step-desc">Simpan kredensial toko di file <code>.env</code> aplikasi web Anda.</div>
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div class="step-text">
+              <div class="step-title">Mulai Terima Bayaran</div>
+              <div class="step-desc">Panggil <code>POST /api/orders</code> untuk buat QRIS. Pembayaran terverifikasi otomatis.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Session Info & Tips -->
+      <div class="card info-box">
+        <b>💡 Tips Penggunaan PaymentG:</b>
+        <ul>
+          <li>Sesi token ShopeePay aktif berhari-hari hingga berminggu-minggu selama akun tidak di-logout di device lain.</li>
+          <li>Setiap pesanan otomatis diberi <b>kode unik acak (1–999)</b> sehingga sistem dapat membedakan transfer pembeli secara presisi.</li>
+          <li>Uji coba sistem kapan saja tanpa transfer uang asli dengan membuka <a href="/sandbox/" style="color: var(--primary); font-weight: 700;">🧪 Mode Sandbox</a>.</li>
         </ul>
       </div>
     </section>
@@ -137,21 +204,27 @@
       <div class="card">
         <div class="table-header">
           <div class="table-controls-left">
-            <input type="text" id="search-order" class="search-input" placeholder="Cari Order / Invoice / Shopee Tx ID..." oninput="renderOrdersTable()">
+            <div class="search-input-wrap">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="search-order" class="search-input" placeholder="Cari Order / Invoice / Shopee Tx ID..." oninput="renderOrdersTable()">
+            </div>
             <select id="filter-status" class="filter-select" onchange="renderOrdersTable()">
               <option value="ALL">Semua Status</option>
-              <option value="PENDING">Hanya PENDING</option>
-              <option value="PAID">Hanya PAID (Lunas)</option>
-              <option value="EXPIRED">Hanya EXPIRED</option>
-              <option value="CANCELLED">Hanya CANCELLED</option>
+              <option value="PENDING">Menunggu Bayar (PENDING)</option>
+              <option value="PAID">Lunas (PAID)</option>
+              <option value="EXPIRED">Kedaluwarsa (EXPIRED)</option>
+              <option value="CANCELLED">Dibatalkan (CANCELLED)</option>
             </select>
           </div>
 
-          <div style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
-            <label style="font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px; cursor: pointer;">
-              <input type="checkbox" id="auto-refresh-toggle" checked> Auto Refresh (5s)
+          <div class="table-controls-right">
+            <label class="auto-refresh-label">
+              <input type="checkbox" id="auto-refresh-toggle" checked>
+              <span>Auto Refresh (5s)</span>
             </label>
-            <button class="btn btn-secondary btn-sm" onclick="loadOrders()">Muat Ulang</button>
+            <button class="btn btn-secondary btn-sm" onclick="loadOrders()">
+              <span>🔄</span> Refresh
+            </button>
           </div>
         </div>
 
@@ -166,11 +239,11 @@
                 <th>Status</th>
                 <th>Shopee TX ID</th>
                 <th>Waktu</th>
-                <th>Aksi</th>
+                <th style="text-align: right;">Aksi</th>
               </tr>
             </thead>
             <tbody id="orders-tbody">
-              <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">Memuat data mutasi...</td></tr>
+              <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 32px;">Memuat data mutasi...</td></tr>
             </tbody>
           </table>
         </div>
@@ -179,105 +252,185 @@
 
     <!-- Tab 3: Buat Tagihan QRIS Baru -->
     <section id="tab-generator" class="tab-content">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+      <div class="generator-grid">
         <!-- Form Generator -->
         <div class="card">
-          <h2 style="font-size: 17px; margin-bottom: 4px;">Buat Tagihan QRIS Dinamis</h2>
-          <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px;">
-            Simulasikan pembuatan tagihan QRIS ber-nominal unik secara instan.
-          </p>
+          <div class="card-head">
+            <h2 class="card-head-title">⚡ Buat Tagihan QRIS Dinamis</h2>
+            <p class="card-head-desc">
+              Buat tagihan QRIS dengan kode unik otomatis untuk pengujian langsung.
+            </p>
+          </div>
 
           <form onsubmit="submitCreateOrder(event)">
             <div class="form-group">
+              <label class="form-label">Pilih Web Toko Pembuat Tagihan *</label>
+              <select id="gen-app-select" class="form-input" onchange="handleAppSelectChange()">
+                <option value="">Memuat daftar toko...</option>
+              </select>
+              <div class="form-help">API Key toko ini akan digunakan untuk membuat pesanan.</div>
+            </div>
+
+            <div class="form-group">
               <label class="form-label">Nominal Pembayaran (Rp) *</label>
-              <input type="number" id="gen-amount" class="form-input" value="10000" step="500" required>
-              <div class="form-help">Contoh: 10000, 25000, 50000</div>
+              <div class="input-prefix-wrap">
+                <span class="input-prefix">Rp</span>
+                <input type="number" id="gen-amount" class="form-input has-prefix" value="10000" step="500" min="500" required>
+              </div>
+              <div class="form-help">Contoh: 10000, 25000, 50000. Kode unik (1-999) otomatis ditambahkan.</div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">No. Invoice / Reference ID</label>
-              <input type="text" id="gen-ref-id" class="form-input" placeholder="INV-2026-XXXX">
+              <label class="form-label">No. Invoice / Reference ID (Opsional)</label>
+              <input type="text" id="gen-ref-id" class="form-input font-mono" placeholder="INV-2026-001">
+              <div class="form-help">Kosongkan untuk otomatis menghasilkan nomor acak.</div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Masa Berlaku (Menit)</label>
-              <input type="number" id="gen-expiry" class="form-input" value="15" min="1" max="120">
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Masa Berlaku (Menit)</label>
+                <input type="number" id="gen-expiry" class="form-input" value="15" min="1" max="120">
+              </div>
+
+              <div class="form-group" style="flex: 2;">
+                <label class="form-label">Catatan Metadata</label>
+                <input type="text" id="gen-metadata" class="form-input" placeholder="Item: Topup Saldo">
+              </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Catatan Metadata</label>
-              <input type="text" id="gen-metadata" class="form-input" placeholder="Item: Donasi Web">
-            </div>
-
-            <button type="submit" id="btn-generate-order" class="btn btn-primary" style="width: 100%; justify-content: center;">
-              Generate QRIS Tagihan
+            <button type="submit" id="btn-generate-order" class="btn btn-primary btn-block">
+              <span>⚡</span> Generate QRIS Tagihan
             </button>
           </form>
         </div>
 
-        <!-- QR Preview -->
+        <!-- QR Preview Box -->
         <div class="card" id="qr-result-box" style="display: none;">
-          <h3 style="font-size: 16px; margin-bottom: 4px;">QRIS Tagihan Aktif</h3>
-          <p style="font-size: 12px; color: var(--text-muted);">Scan QR menggunakan ShopeePay / Bank / E-Wallet</p>
+          <div class="card-head">
+            <h3 class="card-head-title">📱 QRIS Siap Discan</h3>
+            <p class="card-head-desc">Scan dengan ShopeePay, BCA, Mandiri, GoPay, OVO, atau Bank apa saja.</p>
+          </div>
 
-          <div class="qr-preview-box" style="margin-top: 12px;">
-            <img id="qr-res-img" class="qr-image" src="" alt="QRIS Code">
-            <div style="font-size: 12px; color: #e65100; font-weight: 700; margin-bottom: 2px;">
-              ⚠️ Transfer TEPAT (Termasuk Kode Unik +<span id="qr-res-unique">0</span>):
+          <div class="qr-preview-box">
+            <div class="qr-image-container">
+              <img id="qr-res-img" class="qr-image" src="" alt="QRIS Code">
+              <div class="qr-scan-pulse"></div>
             </div>
+
+            <div class="transfer-alert">
+              <span class="transfer-alert-icon">⚠️</span>
+              <div>Wajib transfer <b>TEPAT NOMINAL</b> beserta kode unik:</div>
+            </div>
+
             <div id="qr-res-total" class="qr-amount-large">Rp 0</div>
-            <div style="margin-top: 8px;">
-              <span id="qr-res-status" class="badge badge-pending">MENUNGGU PEMBAYARAN...</span>
+
+            <div class="qr-breakdown-card">
+              <div class="breakdown-row">
+                <span>Nominal Tagihan:</span>
+                <span id="qr-res-base" class="font-mono">Rp 0</span>
+              </div>
+              <div class="breakdown-row highlight">
+                <span>Kode Unik Verifikasi:</span>
+                <span id="qr-res-unique" class="font-mono font-bold">+0</span>
+              </div>
+              <div class="breakdown-divider"></div>
+              <div class="breakdown-row total">
+                <span>Total Harus Dibayar:</span>
+                <span id="qr-res-total-calc" class="font-mono font-bold">Rp 0</span>
+              </div>
             </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">
-              Order ID: <code id="qr-res-id">-</code>
+
+            <div class="qr-status-wrap">
+              <span id="qr-res-status" class="badge badge-pending">⏳ MENUNGGU PEMBAYARAN...</span>
+            </div>
+
+            <div class="qr-meta-wrap">
+              <div>Order ID: <code id="qr-res-id" class="font-mono">-</code></div>
+              <button class="btn btn-secondary btn-xs" onclick="copyToClipboard(document.getElementById('qr-res-id').innerText, this)">📋 Salin ID</button>
+            </div>
+
+            <div class="qr-actions-row">
+              <button class="btn btn-secondary btn-sm" onclick="forceCheckCurrentOrder()">
+                🔄 Cek Status Sekarang
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="copyPaymentInstruction()">
+                📋 Salin Petunjuk Bayar
+              </button>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Tab 4: Kelola App -->
+    <!-- Tab 4: Kelola Toko & API -->
     <section id="tab-apps" class="tab-content">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+      
+      <!-- Banner Penjelasan Tab Toko -->
+      <div class="card info-hero-card">
+        <div class="info-hero-content">
+          <div class="info-hero-icon">🔐</div>
+          <div>
+            <h2 class="info-hero-title">Manajemen Integrasi Web Toko</h2>
+            <p class="info-hero-desc">
+              Daftarkan website toko atau aplikasi Anda di bawah ini untuk mendapatkan <b>API Key</b> (kunci membuat tagihan) dan <b>Webhook Secret</b> (kunci verifikasi notifikasi lunas).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="apps-grid">
+        <!-- Form Register App -->
         <div class="card">
-          <h2 style="font-size: 17px; margin-bottom: 4px;">Daftarkan Web Toko Baru</h2>
-          <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px;">
-            Dapatkan API Key dan Webhook Secret untuk web jual-beli Anda.
-          </p>
+          <div class="card-head">
+            <h3 class="card-head-title">➕ Daftarkan Web Toko Baru</h3>
+            <p class="card-head-desc">
+              Masukkan nama toko dan endpoint webhook di server Anda.
+            </p>
+          </div>
 
           <form onsubmit="submitCreateApp(event)">
             <div class="form-group">
               <label class="form-label">Nama Web Toko *</label>
-              <input type="text" id="app-name" class="form-input" placeholder="Toko Saya" required>
+              <input type="text" id="app-name" class="form-input" placeholder="Contoh: Toko Diamond Game" required>
+              <div class="form-help">Nama untuk membedakan toko Anda di dashboard ini.</div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Webhook URL (Notifikasi Bayar) *</label>
-              <input type="url" id="app-webhook" class="form-input" placeholder="https://tokoku.com/api/webhook" required>
+              <label class="form-label">Webhook URL (Notifikasi Pembayaran) *</label>
+              <input type="url" id="app-webhook" class="form-input font-mono" placeholder="https://domainanda.com/api/payment-webhook" required>
+              <div class="form-help">PaymentG akan mengirim HTTP POST ke URL ini setiap kali pembeli berhasil bayar.</div>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">
-              Daftarkan Web Toko
+            <button type="submit" id="btn-create-app" class="btn btn-primary btn-block">
+              <span>➕</span> Daftarkan Web Toko & Dapatkan Kunci
             </button>
           </form>
         </div>
 
+        <!-- Daftar Toko Table Card -->
         <div class="card">
-          <h3 style="font-size: 16px; margin-bottom: 12px;">Daftar Web Terintegrasi</h3>
+          <div class="card-head flex-between">
+            <div>
+              <h3 class="card-head-title">📋 Daftar Web Terintegrasi</h3>
+              <p class="card-head-desc">Kredensial toko yang aktif dapat disalin kapan saja.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadApps()">🔄 Refresh</button>
+          </div>
+
           <div class="table-responsive">
             <table>
               <thead>
                 <tr>
-                  <th>Nama</th>
+                  <th>Nama Toko</th>
                   <th>API Key</th>
+                  <th>Webhook Secret</th>
                   <th>Webhook URL</th>
                   <th>Status</th>
-                  <th>Aksi</th>
+                  <th style="text-align: right;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="apps-tbody">
-                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 16px;">Memuat...</td></tr>
+                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">Memuat daftar toko...</td></tr>
               </tbody>
             </table>
           </div>
@@ -288,55 +441,167 @@
   </main>
 
   <!-- ==========================================
-       4. Settings Modal
+       4. Modal: Web Toko Baru Berhasil Dibuat
        ========================================== -->
-  <div id="settings-modal" class="modal-overlay">
-    <div class="modal">
+  <div id="created-app-modal" class="modal-overlay">
+    <div class="modal modal-lg">
       <div class="modal-header">
-        <h3 class="modal-title">Pengaturan API Backend</h3>
-        <button id="btn-close-settings" class="modal-close">&times;</button>
+        <div class="modal-title-wrap">
+          <span class="modal-success-badge">✓ Berhasil</span>
+          <h3 class="modal-title">Web Toko Baru Terdaftar</h3>
+        </div>
+        <button class="modal-close" onclick="closeModal('created-app-modal')">&times;</button>
       </div>
 
-      <div class="form-group">
-        <label class="form-label">PaymentG Backend URL</label>
-        <input type="text" id="setting-api-url" class="form-input" placeholder="http://localhost:3200">
-        <div class="form-help">Jika hosting di Vercel/Netlify, arahkan ke URL VPS Anda (misal https://api.domain.com).</div>
-      </div>
+      <div class="created-app-content">
+        <div class="alert-success-box">
+          <span style="font-size: 20px;">🎉</span>
+          <div>
+            Toko <b id="created-modal-name">-</b> berhasil didaftarkan! Kredensial telah aktif dan siap digunakan di website Anda.
+          </div>
+        </div>
 
-      <div class="form-group">
-        <label class="form-label">X-Admin-Key</label>
-        <input type="text" id="setting-admin-key" class="form-input" placeholder="adm_secret_...">
-        <div class="form-help">Kunci admin server (otomatis terisi saat login PIN 2207).</div>
-      </div>
+        <!-- API Key Field -->
+        <div class="form-group" style="margin-top: 16px;">
+          <label class="form-label flex-between">
+            <span>API Key (Kunci Buat Order)</span>
+            <span class="label-badge">X-API-Key</span>
+          </label>
+          <div class="copy-input-group">
+            <input type="text" id="created-modal-apikey" class="form-input font-mono" readonly>
+            <button class="btn btn-primary btn-copy" onclick="copyToClipboard(document.getElementById('created-modal-apikey').value, this)">
+              📋 Salin
+            </button>
+          </div>
+          <div class="form-help">Gunakan sebagai header <code>X-API-Key</code> saat request ke PaymentG.</div>
+        </div>
 
-      <div class="form-group">
-        <label class="form-label">X-API-Key</label>
-        <input type="text" id="setting-api-key" class="form-input" placeholder="ak_...">
-        <div class="form-help">Kunci toko untuk generator QRIS.</div>
-      </div>
+        <!-- Webhook Secret Field -->
+        <div class="form-group">
+          <label class="form-label flex-between">
+            <span>Webhook Secret (Kunci Validasi HMAC)</span>
+            <span class="label-badge">X-Webhook-Signature</span>
+          </label>
+          <div class="copy-input-group">
+            <input type="text" id="created-modal-secret" class="form-input font-mono" readonly>
+            <button class="btn btn-primary btn-copy" onclick="copyToClipboard(document.getElementById('created-modal-secret').value, this)">
+              📋 Salin
+            </button>
+          </div>
+          <div class="form-help">Digunakan untuk memvalidasi tanda tangan notifikasi pembayaran dari server PaymentG.</div>
+        </div>
 
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
-        <button class="btn btn-secondary" onclick="closeModal('settings-modal')">Batal</button>
-        <button id="btn-save-settings" class="btn btn-primary">Simpan</button>
+        <!-- Ready to paste .env block -->
+        <div class="form-group">
+          <label class="form-label flex-between">
+            <span>Format Siap Pakai (.env)</span>
+            <button class="btn btn-secondary btn-xs" onclick="copyEnvSnippet(this)">
+              📋 Salin Blok .env
+            </button>
+          </label>
+          <pre id="created-modal-env" class="env-code-block"></pre>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-primary btn-block" onclick="closeModal('created-app-modal')">
+            Mengerti & Tutup
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- ==========================================
-       5. QR Preview Modal
+       5. Settings Modal
+       ========================================== -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Pengaturan Server API</h3>
+        <button id="btn-close-settings" class="modal-close">&times;</button>
+      </div>
+
+      <!-- Explainer banner explaining auto-configuration -->
+      <div class="settings-explainer">
+        <div class="explainer-icon">ℹ️</div>
+        <div class="explainer-body">
+          <b>Mode Terintegrasi Otomatis (All-in-One)</b>
+          <p>
+            Anda <b>tidak perlu</b> mengubah pengaturan ini jika membuka dashboard dari server yang sama. Kunci Admin dan URL backend otomatis disinkronkan saat login PIN 2207.
+          </p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">PaymentG Backend URL</label>
+        <input type="text" id="setting-api-url" class="form-input font-mono" placeholder="http://localhost:3200">
+        <div class="form-help">Arahkan ke domain VPS jika dashboard dihosting terpisah (misal di Vercel/Netlify).</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label flex-between">
+          <span>X-Admin-Key (Master Key Server)</span>
+          <span class="label-badge">Admin</span>
+        </label>
+        <div class="copy-input-group">
+          <input type="password" id="setting-admin-key" class="form-input font-mono" placeholder="adm_secret_...">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="togglePasswordVisibility('setting-admin-key', this)">👁️</button>
+        </div>
+        <div class="form-help">Kunci master admin untuk mengelola token ShopeePay dan daftar web toko.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Toko Aktif untuk Generator QRIS (X-API-Key)</label>
+        <select id="setting-app-picker" class="form-input" onchange="syncSelectedAppToApiKey(this.value)">
+          <option value="">Pilih dari daftar web toko...</option>
+        </select>
+        <input type="text" id="setting-api-key" class="form-input font-mono" style="margin-top: 6px;" placeholder="ak_...">
+        <div class="form-help">Kunci toko yang sedang digunakan di tab "Buat QRIS".</div>
+      </div>
+
+      <div class="modal-footer flex-between" style="margin-top: 20px;">
+        <button class="btn btn-secondary btn-sm" onclick="resetSettingsToDefault()">Reset Default</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary" onclick="closeModal('settings-modal')">Batal</button>
+          <button id="btn-save-settings" class="btn btn-primary">Simpan Pengaturan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       6. QR Preview Modal (From Table Click)
        ========================================== -->
   <div id="qr-modal" class="modal-overlay">
-    <div class="modal" style="max-width: 360px; text-align: center;">
+    <div class="modal" style="max-width: 380px; text-align: center;">
       <div class="modal-header">
-        <h3 class="modal-title" style="font-size: 16px;">QRIS Tagihan</h3>
+        <h3 class="modal-title" style="font-size: 16px;">Detail Tagihan QRIS</h3>
         <button class="modal-close" onclick="closeModal('qr-modal')">&times;</button>
       </div>
-      <img id="modal-qr-img" class="qr-image" src="" alt="QR">
-      <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">Total Tagihan:</div>
-      <div id="modal-qr-amount" class="qr-amount-large">Rp 0</div>
-      <div style="font-size: 11px; color: var(--text-muted);">Order ID: <code id="modal-qr-id">-</code></div>
-      <button class="btn btn-secondary" style="width: 100%; margin-top: 16px; justify-content: center;" onclick="closeModal('qr-modal')">Tutup</button>
+
+      <div class="modal-qr-body">
+        <img id="modal-qr-img" class="qr-image" src="" alt="QR">
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">Total Transfer Wajib Tepat:</div>
+        <div id="modal-qr-amount" class="qr-amount-large" style="margin: 4px 0 10px;">Rp 0</div>
+        
+        <div class="modal-order-meta">
+          <div>Order ID: <code id="modal-qr-id" class="font-mono">-</code></div>
+          <div>Status: <span id="modal-qr-status" class="badge badge-pending">PENDING</span></div>
+        </div>
+
+        <button class="btn btn-secondary btn-block" style="margin-top: 18px;" onclick="closeModal('qr-modal')">
+          Tutup Jendela
+        </button>
+      </div>
     </div>
+  </div>
+
+  <!-- ==========================================
+       7. Toast Notification Floating Element
+       ========================================== -->
+  <div id="toast" class="toast-notification">
+    <span id="toast-icon">✓</span>
+    <span id="toast-message">Berhasil disalin!</span>
   </div>
 
   <script src="app.js"></script>
