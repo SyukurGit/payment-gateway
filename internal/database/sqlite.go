@@ -78,6 +78,7 @@ func (d *DB) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);`,
 		`CREATE INDEX IF NOT EXISTS idx_orders_total_amount ON orders(total_amount);`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_active_amount ON orders(total_amount) WHERE status = 'PENDING';`,
+		`INSERT OR IGNORE INTO config (key, value, updated_at) VALUES ('dashboard_pin', '2207', datetime('now'));`,
 	}
 
 	for _, query := range queries {

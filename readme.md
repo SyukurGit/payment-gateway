@@ -123,6 +123,33 @@ Digunakan saat session browser ShopeePay Anda habis tanpa perlu restart server.
 * **URL:** `DELETE /api/apps/:id`
 * **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
 
+#### 6. Statistik & Ringkasan Transaksi
+* **URL:** `GET /api/stats`
+* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
+* **Respons (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "total_orders": 9,
+    "paid_orders": 2,
+    "pending_orders": 4,
+    "expired_orders": 0,
+    "total_revenue": 2887
+  }
+}
+```
+
+#### 7. List Seluruh Riwayat Transaksi (Admin)
+* **URL:** `GET /api/orders?limit=100&offset=0`
+* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
+* **Respons (200 OK):** Mengembalikan array pesanan lengkap beserta status, kode unik, dan Shopee Tx ID.
+
+#### 8. Trigger Auto-Refresh Playwright via API
+* **URL:** `POST /api/token/refresh`
+* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
+* **Respons (200 OK):** Menjalankan `refresh_token.py` secara otomatis di latar belakang dan mengembalikan output eksekusi.
+
 ---
 
 ### B. Client / Order Endpoints (`X-API-Key`)
