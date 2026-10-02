@@ -99,6 +99,7 @@ func main() {
 	// Public routes
 	r.GET("/api/health", healthHandler.HealthCheck)
 	r.GET("/api/orders/:id/qr.png", orderHandler.GetQRImage) // public so <img> can load from any domain
+	r.POST("/api/auth/pin", adminHandler.VerifyPIN)          // public PIN gate for dashboard
 
 	// Client API routes (X-API-Key auth)
 	clientAPI := r.Group("/api")

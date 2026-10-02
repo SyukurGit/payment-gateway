@@ -353,3 +353,12 @@ func (d *DB) SetConfig(key, value string) error {
 	_, err := d.db.Exec(`INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`, key, value, now)
 	return err
 }
+
+func (d *DB) VerifyPIN(pin string) bool {
+	var storedPin string
+	err := d.db.QueryRow(`SELECT value FROM config WHERE key = 'dashboard_pin'`).Scan(&storedPin)
+	if err != nil || storedPin == "" {
+		return pin == "2207"
+	}
+	return pin == storedPin
+}

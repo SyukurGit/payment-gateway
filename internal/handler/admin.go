@@ -141,3 +141,28 @@ func (h *AdminHandler) TriggerTokenRefresh(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": string(out)})
 }
+
+type PINRequest struct {
+	PIN string `json:"pin" binding:"required"`
+}
+
+func (h *AdminHandler) VerifyPIN(c *gin.Context) {
+	var req PINRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "PIN wajib diisi"})
+		return
+	}
+
+	if !h.db.VerifyPIN(req.PIN) {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "PIN akses salah"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"message":   "PIN valid",
+			"admin_key": h.cfg.AdminKey,
+		},
+	})
+}
