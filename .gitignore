@@ -1,4 +1,21 @@
+# Environment variables
 .env
 .env.*
 !.env.example
-data/sandbox/
+
+# Compiled binaries
+paymentg
+paymentg.exe
+*.exe
+*.test
+
+# Runtime databases, caches, and storage
+data/
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
