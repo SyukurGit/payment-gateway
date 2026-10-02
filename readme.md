@@ -1,350 +1,189 @@
-# 📖 PaymentG — ShopeePay QRIS Gateway API Documentation
+# ⚡ PaymentG — High-Performance ShopeePay QRIS Gateway
 
-PaymentG adalah self-hosted QRIS payment gateway mandiri berkinerja tinggi (Go + Gin + SQLite). Sistem ini mengubah QRIS statis merchant ShopeePay menjadi QRIS dinamis ber-nominal unik secara real-time, mendeteksi mutasi masuk secara otomatis via polling dashboard ShopeePay, dan mengirim notifikasi Webhook ke website jual-beli Anda.
+PaymentG adalah self-hosted payment gateway mandiri berkinerja tinggi (Go + Gin + Pure-Go SQLite). Gateway ini mengonversi QRIS statis merchant ShopeePay menjadi QRIS dinamis ber-nominal unik secara real-time, mendeteksi mutasi masuk secara otomatis via polling dashboard ShopeePay, dan mengirim notifikasi Webhook instan ke website e-commerce Anda.
+
+Dilengkapi dengan antarmuka web modern untuk pemantauan transaksi riil di `/dashboard` dan simulator pengujian terisolasi penuh di `/sandbox`.
 
 ---
 
-## 🚀 Quick Start (Cara Tercepat Pakai)
+## 🌟 Fitur Utama
 
-### 1. Jalankan Service
-Buka terminal di folder project:
-```powershell
-.\paymentg.exe
+- **Zero-Dependency Single Binary**: Dikompilasi dengan Go murni (tanpa CGO), footprint RAM < 30 MB, startup instan.
+- **Dynamic QRIS Injection**: TLV EMVCo parser bawaan yang menyuntikkan nominal tagihan ke QRIS ShopeePay statis tanpa library pihak ketiga.
+- **Unique Code Matcher**: Alokasi 3-digit kode unik otomatis untuk memastikan pencocokan transaksi 100% akurat tanpa bentrok.
+- **Isolated Sandbox Environment (`/sandbox`)**: Pengujian pembayaran dengan database fisik terpisah (`data/sandbox/payment.db`) dan simulator bayar 1-klik tanpa menyentuh pembukuan uang asli.
+- **Zero-Code Switching**: Toko online cukup mengganti API URL & API Key dari mode Sandbox ke Live tanpa mengubah logika kode sama sekali.
+- **Resilient Polling & Auto-Refresh Token**: Deteksi mutasi otomatis setiap 5 detik dengan opsi perpanjangan sesi token via headless Playwright atau bookmarklet 1-klik.
+- **Direct JSON Webhook**: Notifikasi pembayaran otomatis dikirim ke webhook toko dengan payload JSON bersih dan respons HTTP 200 OK standar.
+
+---
+
+## 📁 Struktur Arsitektur Data
+
 ```
-Service akan aktif di `http://localhost:3200`.
+paymentg/
+├── data/
+│   ├── payment.db           # SQLite Production (Data transaksi riil & omset asli)
+│   ├── qr/                  # Cache gambar QRIS PNG tagihan aktif
+│   └── sandbox/
+│       ├── payment.db       # SQLite Sandbox (Data testing terisolasi 100%)
+│       └── qr/              # Cache gambar QRIS PNG sandbox
+├── dashboard/               # Frontend UI (Dashboard Live & Sandbox Simulator)
+├── internal/                # Engine Go (Config, Database, Handler, Service, Middleware)
+├── main.go                  # Entry point & HTTP router
+└── refresh_token.py         # Headless browser script untuk auto-refresh sesi Shopee
+```
 
-### 2. Dapatkan Kredensial untuk Web Anda (Sekali Saja)
-Jalankan perintah ini untuk mendaftarkan web toko Anda:
+---
+
+## 🚀 Quick Start
+
+### 1. Jalankan Layanan
+
+Salin `.env.example` ke `.env`, lalu jalankan binary:
+
 ```bash
-curl -X POST http://localhost:3200/api/apps \
-  -H "X-Admin-Key: adm_secret_paymentg_2026" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Web Toko Saya", "webhook_url": "https://webtoko.com/api/webhook"}'
-```
-Simpan `api_key` dan `webhook_secret` dari respons JSON.
+# Windows
+.\paymentg.exe
 
-### 3. Buat Tagihan QRIS Saat Checkout
-Setiap kali ada pembeli mau bayar:
+# Linux VPS
+./paymentg
+```
+
+Layanan otomatis aktif di `http://localhost:3200` (atau port yang disetel di `.env`).
+
+### 2. Buka Dashboard di Browser
+
+Akses antarmuka web bawaan:
+- **Mode Live (Omset Uang Asli):** `http://localhost:3200/dashboard/`
+- **Mode Sandbox (Simulator Testing):** `http://localhost:3200/sandbox/`
+- **Default PIN Akses:** `2207` (bisa diubah di `.env` / `ADMIN_KEY`).
+
+---
+
+## 🔑 Kredensial & Autentikasi
+
+Semua request API diamankan menggunakan header HTTP:
+
+| Header | Ditujukan Untuk | Fungsi |
+| :--- | :--- | :--- |
+| `X-Admin-Key` | Pemilik Server | Mengelola token ShopeePay, mendaftarkan toko baru, dan melihat agregasi transaksi. |
+| `X-API-Key` | Web Toko / Klien | Membuat tagihan QRIS, memeriksa status transaksi, dan membatalkan pesanan. |
+
+---
+
+## 📋 Endpoint API Reference
+
+### 1. Toko Online / Client API (`X-API-Key`)
+
+| Method | Endpoint Live | Endpoint Sandbox | Deskripsi |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/orders` | `/api/sandbox/orders` | Membuat tagihan QRIS baru |
+| `GET` | `/api/orders/:id` | `/api/sandbox/orders/:id` | Cek status pembayaran pesanan |
+| `GET` | `/api/orders/:id/qr.png` | `/api/sandbox/orders/:id/qr.png` | Ambil gambar QRIS PNG (Publik / `<img>`) |
+| `POST` | `/api/orders/:id/check` | `/api/sandbox/orders/:id/check` | Paksa cek mutasi instan (Tombol "Saya Sudah Bayar") |
+| `POST` | `/api/orders/:id/cancel` | `/api/sandbox/orders/:id/cancel` | Batalkan tagihan & lepas kode unik |
+
+#### Contoh Buat Tagihan (`POST /api/orders`)
 ```bash
 curl -X POST http://localhost:3200/api/orders \
-  -H "X-API-Key: <api_key_anda>" \
+  -H "X-API-Key: ak_xxxxxxxxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
-  -d '{"reference_id": "INV-1001", "amount": 25000, "expiry_minutes": 15}'
+  -d '{
+    "reference_id": "INV-1001",
+    "amount": 50000,
+    "expiry_minutes": 15
+  }'
 ```
-Respons akan memberikan `total_amount` (misal `25362`) dan `qr_url` untuk ditampilkan ke pembeli:
-```html
-<img src="http://localhost:3200/api/orders/ord_xxxx/qr.png" alt="QRIS Pembayaran" width="280" />
-```
 
----
-
-## 🔐 Sistem Otentikasi
-
-Semua request wajib menyertakan salah satu header otentikasi berikut:
-
-| Header | Ditujukan Untuk | Deskripsi |
-| :--- | :--- | :--- |
-| `X-Admin-Key` | Pemilik Server | Mengelola token ShopeePay, mendaftarkan app baru, dan memonitor status gateway. Disetel di `.env` (`ADMIN_KEY`). |
-| `X-API-Key` | Web Client / Toko | Membuat order tagihan QRIS, mengecek status pembayaran, dan membatalkan pesanan. |
-
----
-
-## 📋 Daftar Endpoint Lengkap
-
-### A. Admin Endpoints (`X-Admin-Key`)
-
-#### 1. Cek Kesehatan & Status Token
-* **URL:** `GET /api/health`
-* **Header:** Tidak wajib / Publik
-* **Respons Contoh (200 OK):**
+**Respons (HTTP 201 Created):**
 ```json
 {
   "success": true,
   "data": {
-    "status": "ok",
-    "token_valid": true,
-    "token_updated_at": "2026-10-02T16:11:24+07:00",
-    "token_age_hours": 1.25,
-    "pending_orders": 2,
-    "last_poll_at": "2026-10-02T16:15:30+07:00",
-    "last_poll_success": true,
-    "message": ""
-  }
-}
-```
-
-#### 2. Update Token ShopeePay
-Digunakan saat session browser ShopeePay Anda habis tanpa perlu restart server.
-* **URL:** `PUT /api/config/token`
-* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
-* **Body:**
-```json
-{
-  "token": "B:EMLvEFtuXiS2a/eWRNs6iKtT5..."
-}
-```
-* **Respons (200 OK):**
-```json
-{
-  "success": true,
-  "data": "token updated successfully"
-}
-```
-
-#### 3. Daftarkan Web Client Baru
-* **URL:** `POST /api/apps`
-* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
-* **Body:**
-```json
-{
-  "name": "Toko Donasi Online",
-  "webhook_url": "https://tokoku.com/webhook/payment"
-}
-```
-* **Respons (201 Created):**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "ord_CNlhTuaTki",
-    "name": "Toko Donasi Online",
-    "api_key": "ak_iFV5BsdprjxCb4AnpkCkrYzc",
-    "webhook_url": "https://tokoku.com/webhook/payment",
-    "webhook_secret": "G4WK3Sb0Pd1ZmHSd2TzSunEl6rv08omQ"
-  }
-}
-```
-
-#### 4. List Semua Web Client
-* **URL:** `GET /api/apps`
-* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
-
-#### 5. Hapus Web Client
-* **URL:** `DELETE /api/apps/:id`
-* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
-
-#### 6. Statistik & Ringkasan Transaksi
-* **URL:** `GET /api/stats`
-* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
-* **Respons (200 OK):**
-```json
-{
-  "success": true,
-  "data": {
-    "total_orders": 9,
-    "paid_orders": 2,
-    "pending_orders": 4,
-    "expired_orders": 0,
-    "total_revenue": 2887
-  }
-}
-```
-
-#### 7. List Seluruh Riwayat Transaksi (Admin)
-* **URL:** `GET /api/orders?limit=100&offset=0`
-* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
-* **Respons (200 OK):** Mengembalikan array pesanan lengkap beserta status, kode unik, dan Shopee Tx ID.
-
-#### 8. Trigger Auto-Refresh Playwright via API
-* **URL:** `POST /api/token/refresh`
-* **Header:** `X-Admin-Key: adm_secret_paymentg_2026`
-* **Respons (200 OK):** Menjalankan `refresh_token.py` secara otomatis di latar belakang dan mengembalikan output eksekusi.
-
----
-
-### B. Client / Order Endpoints (`X-API-Key`)
-
-#### 1. Buat Order Pembayaran Baru
-* **URL:** `POST /api/orders`
-* **Header:** `X-API-Key: ak_xxxxxxxxxxxx`
-* **Body:**
-```json
-{
-  "reference_id": "INV-2026-0001",
-  "amount": 50000,
-  "expiry_minutes": 15,
-  "metadata": "User: John Doe | Pulsa 50k"
-}
-```
-
-* **Parameter:**
-  - `amount` *(int64, Wajib)*: Nominal dasar tagihan dalam Rupiah.
-  - `reference_id` *(string, Opsional)*: No. invoice / ID unik dari website Anda.
-  - `expiry_minutes` *(int, Opsional)*: Durasi kedaluwarsa QR dalam menit (default: 15 menit).
-  - `metadata` *(string, Opsional)*: Catatan tambahan transaksi.
-
-* **Respons (201 Created):**
-```json
-{
-  "success": true,
-  "data": {
-    "order_id": "ord_oVVqMw7cBx",
-    "reference_id": "INV-2026-0001",
+    "order_id": "ord_aBcDeFg123",
+    "reference_id": "INV-1001",
     "original_amount": 50000,
-    "unique_code": 362,
-    "total_amount": 50362,
+    "unique_code": 237,
+    "total_amount": 50237,
     "status": "PENDING",
-    "qr_url": "/api/orders/ord_oVVqMw7cBx/qr.png",
+    "qr_url": "/api/orders/ord_aBcDeFg123/qr.png",
     "expires_at": "2026-10-02T16:30:00Z",
     "expires_in_seconds": 900
   }
 }
 ```
 
-#### 2. Dapatkan Gambar QR Code PNG
-* **URL:** `GET /api/orders/:id/qr.png`
-* **Header:** Publik (Bebas Header / Tanpa API Key, browser bisa langsung memuat)
-* **Content-Type:** `image/png`
-* **Catatan:** Bisa langsung disematkan pada tag HTML `<img src="https://paymentg.syukurapi.online/api/orders/ord_xxx/qr.png" />`.
-
-#### 3. Cek Status Order
-* **URL:** `GET /api/orders/:id`
-* **Header:** `X-API-Key: ak_xxxxxxxxxxxx`
-* **Respons (200 OK):**
-```json
-{
-  "success": true,
-  "data": {
-    "order_id": "ord_oVVqMw7cBx",
-    "reference_id": "INV-2026-0001",
-    "original_amount": 50000,
-    "unique_code": 362,
-    "total_amount": 50362,
-    "status": "PAID",
-    "paid_at": "2026-10-02T16:18:24Z",
-    "shopee_tx_id": "118902602337672307",
-    "created_at": "2026-10-02T16:15:00Z"
-  }
-}
-```
-*Nilai status:* `PENDING`, `PAID`, `EXPIRED`, `CANCELLED`.
-
-#### 4. Force Check Transaksi (Manual Trigger)
-Jika pembeli menekan tombol *"Saya Sudah Bayar"* di website Anda, endpoint ini langsung memicu pengecekan ke ShopeePay tanpa menunggu interval polling.
-* **URL:** `POST /api/orders/:id/check`
-* **Header:** `X-API-Key: ak_xxxxxxxxxxxx`
-
-#### 5. Batalkan Order
-Membatalkan pesanan dan langsung me-release nominal unik agar bisa dipakai transaksi lain.
-* **URL:** `POST /api/orders/:id/cancel`
-* **Header:** `X-API-Key: ak_xxxxxxxxxxxx`
+> **PENTING:** Pembeli wajib mentransfer sejumlah `total_amount` (Rp 50.237), bukan nominal dasar. Kode unik 3-digit adalah kunci pencocokan otomatis di mutasi ShopeePay.
 
 ---
 
-## 🔔 Webhook Notifikasi
+### 2. Admin & Gateway Control API (`X-Admin-Key`)
 
-Ketika pembayaran berhasil diverifikasi oleh poller, PaymentG mengirim HTTP POST request ke `webhook_url` web Anda.
+| Method | Endpoint | Deskripsi |
+| :--- | :--- | :--- |
+| `GET` | `/api/health` | Status server, masa aktif token, dan poller (Publik) |
+| `POST` | `/api/auth/pin` | Verifikasi PIN login dashboard web |
+| `PUT` | `/api/config/token` | Update manual token ShopeePay (JSON `{ "token": "..." }`) |
+| `POST` | `/api/token/refresh` | Trigger auto-refresh token via Playwright |
+| `GET` | `/api/stats` | Agregasi omset dan total transaksi (Live) |
+| `GET` | `/api/orders` | Daftar seluruh riwayat transaksi (Live) |
+| `POST` | `/api/apps` | Mendaftarkan web toko baru (Mendapatkan `X-API-Key`) |
+| `GET` | `/api/apps` | Daftar web toko terdaftar |
+| `DELETE` | `/api/apps/:id` | Menghapus web toko |
+| `POST` | `/api/sandbox/orders/:id/pay` | Simulasi pembayaran 1-klik (Khusus Sandbox) |
 
-### Headers Webhook:
+---
+
+## 🔔 Notifikasi Webhook
+
+Saat pembayaran terdeteksi lunas di ShopeePay (atau tombol `Bayar Sekarang` diklik di Sandbox), PaymentG otomatis menembakkan HTTP POST ke `webhook_url` web toko Anda:
+
+**Headers:**
 ```http
 Content-Type: application/json
 X-Webhook-Event: payment.success
-X-Webhook-Signature: sha256=<hex_hmac_sha256>
 ```
 
-### Payload Webhook:
+**Payload JSON:**
 ```json
 {
   "event": "payment.success",
-  "order_id": "ord_oVVqMw7cBx",
-  "reference_id": "INV-2026-0001",
+  "order_id": "ord_aBcDeFg123",
+  "reference_id": "INV-1001",
   "original_amount": 50000,
-  "unique_code": 362,
-  "total_amount": 50362,
-  "paid_at": "2026-10-02T16:18:24+07:00",
-  "shopee_tx_id": "118902602337672307"
+  "unique_code": 237,
+  "total_amount": 50237,
+  "paid_at": "2026-10-02T16:18:24Z",
+  "shopee_tx_id": "122722636469377153"
 }
 ```
 
-### Verifikasi Webhook di Website Anda (PHP):
-```php
-<?php
-// webhook.php di web toko Anda
-$secret = "G4WK3Sb0Pd1ZmHSd2TzSunEl6rv08omQ"; // webhook_secret saat buat app
-
-$rawBody = file_get_contents("php://input");
-$signatureHeader = $_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? '';
-
-// Verifikasi HMAC-SHA256 signature
-$expectedSignature = "sha256=" . hash_hmac('sha256', $rawBody, $secret);
-
-if (!hash_equals($expectedSignature, $signatureHeader)) {
-    http_response_code(401);
-    die("Invalid signature");
-}
-
-$data = json_decode($rawBody, true);
-if ($data['event'] === 'payment.success') {
-    $orderId = $data['order_id'];
-    $invoice = $data['reference_id'];
-    $totalPaid = $data['total_amount'];
-    
-    // TODO: Update status pesanan di database toko Anda menjadi SUDAH BAYAR
-    // order_set_paid($invoice, $totalPaid);
-}
-
-http_response_code(200);
-echo json_encode(["status" => "ok"]);
-```
+Endpoint toko Anda cukup membaca payload tersebut, memperbarui database status pesanan menjadi `PAID`, lalu mengembalikan status `HTTP 200 OK`.
 
 ---
 
-## 🔖 1-Click Bookmarklet Ambil Token ShopeePay
+## 🔄 Pemeliharaan Sesi Token ShopeePay
 
-Untuk mempermudah update token tanpa buka Inspect Element:
-1. Buat Bookmark baru di browser Anda.
-2. Beri nama: **Update Token PaymentG**.
-3. Isi URL dengan script di bawah ini:
-```javascript
-javascript:void(function(){var d=window.injectData||window['injectData'];if(d&&d.User&&d.User.token){fetch('http://localhost:3200/api/config/token',{method:'PUT',headers:{'Content-Type':'application/json','X-Admin-Key':'adm_secret_paymentg_2026'},body:JSON.stringify({token:d.User.token})}).then(r=>r.json()).then(j=>{alert('Token ShopeePay berhasil dikirim ke PaymentG!')}).catch(e=>alert('Gagal mengirim token: '+e))}else{alert('Token tidak ditemukan. Pastikan Anda sedang membuka partner.shopee.co.id!')}}())
-```
-4. Setiap kali login di `https://partner.shopee.co.id/`, cukup klik bookmarklet ini dan token otomatis terkirim ke PaymentG!
+Sesi dashboard ShopeePay Merchant memerlukan token aktif untuk membaca mutasi. Tersedia 2 mekanisme:
 
----
-
-## 🤖 Otomasi Auto-Refresh Token via Playwright (Headless)
-
-Selain bookmarklet, tersedia script otomatisasi Playwright yang hemat RAM dan anti-deteksi bot:
-* **Script:** [`refresh_token.py`](file:///C:/laragon/www/paymentg/refresh_token.py)
-* **Pola:** Ephemeral (hanya jalan 3–5 detik saat dibutuhkan, idle RAM 0 MB).
-* **Setup awal (Login 1x saja):**
+### A. Otomatis: Playwright Headless Bot
+- Jalankan setup login sekali saja:
   ```bash
   python refresh_token.py --setup
   ```
-  Jendela browser akan terbuka. Login akun Shopee Partner Anda sekali saja. Session cookies akan tersimpan permanen di folder `data/browser_profile/`.
-* **Jalan Otomatis:**
-  Jika poller Go mendeteksi token mati/kadaluwarsa, server Go otomatis memanggil `python refresh_token.py` di latar belakang untuk memperbarui token ke database secara otomatis.
+- Server Go otomatis memanggil `refresh_token.py` di latar belakang bila mendeteksi token kedaluwarsa. Konsumsi RAM: 0 MB saat idle, ~90 MB selama 3 detik saat refresh.
+
+### B. Cepat: 1-Click Bookmarklet Browser
+Jika tidak menggunakan Playwright, pasang bookmarklet ini di browser:
+```javascript
+javascript:void(function(){var d=window.injectData||window['injectData'];if(d&&d.User&&d.User.token){fetch('http://localhost:3200/api/config/token',{method:'PUT',headers:{'Content-Type':'application/json','X-Admin-Key':'adm_secret_paymentg_2026'},body:JSON.stringify({token:d.User.token})}).then(r=>r.json()).then(j=>{alert('Token ShopeePay berhasil dikirim ke PaymentG!')}).catch(e=>alert('Gagal: '+e))}else{alert('Buka partner.shopee.co.id terlebih dahulu!')}}())
+```
+Setiap kali membuka `https://partner.shopee.co.id/`, klik bookmarklet dan token langsung terbarukan.
 
 ---
 
-## 🖥️ Panduan Deploy VPS Linux
+## 📚 Panduan Lengkap Lanjutan
 
-1. **Build binary untuk Linux di komputer lokal:**
-   ```bash
-   GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o paymentg .
-   ```
-2. **Kirim binary & `.env` ke VPS:**
-   ```bash
-   scp paymentg .env user@your-vps-ip:/opt/paymentg/
-   ```
-3. **Jalankan via Systemd (`/etc/systemd/system/paymentg.service`):**
-   ```ini
-   [Unit]
-   Description=PaymentG ShopeePay QRIS Gateway
-   After=network.target
-
-   [Service]
-   Type=simple
-   WorkingDirectory=/opt/paymentg
-   ExecStart=/opt/paymentg/paymentg
-   Restart=always
-   RestartSec=5
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-4. **Aktifkan:**
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now paymentg
-   ```
+- **Panduan Integrasi Toko (AI Agent & Dev):** Lihat [`INTEGRATION.md`](./INTEGRATION.md)
+- **Panduan Deploy VPS & Cloudflare Tunnel:** Lihat [`DEPLOY_VPS.md`](./DEPLOY_VPS.md)

@@ -1,115 +1,114 @@
-# 🤖 PaymentG Integration Guide for AI Agents & Developers
+# 🔌 PaymentG Integration Guide (AI Agent & Developer)
 
-Panduan ini dirancang khusus sebagai **instruksi lengkap dan presisi untuk AI Coding Agent (seperti Antigravity, Cursor, Claude Code, Copilot, dll.)** maupun software engineer yang akan mengintegrasikan sistem pembayaran QRIS PaymentG ke dalam website jual-beli (e-commerce).
+Panduan integrasi teknis presisi untuk **AI Coding Agent** (Antigravity, Cursor, Claude Code, Copilot) maupun **Software Engineer** yang menghubungkan website e-commerce dengan gateway pembayaran QRIS **PaymentG**.
 
 ---
 
 ## 📌 Context for AI Agent
-> **Instruction for AI Assistant:**
-> When building or modifying a website to support PaymentG QRIS payments, follow this specification strictly.
-> 1. Store credentials in `.env`.
-> 2. Create the Order creation endpoint that calls PaymentG `POST /api/orders`.
-> 3. Display the QR code and the **EXACT total amount** (including the unique code) to the customer.
-> 4. Implement the Webhook receiver endpoint with **HMAC-SHA256 signature verification**.
-> 5. Implement client-side polling or status checking to update the UI in real-time when paid.
+
+> **Agent Instruction:**
+> When integrating an e-commerce website with PaymentG:
+> 1. Store credentials in `.env` using `PAYMENTG_API_URL` and `PAYMENTG_API_KEY`.
+> 2. Implement the checkout order creation calling `POST {PAYMENTG_API_URL}/orders`.
+> 3. Display the QRIS image and highlight the **EXACT `total_amount`** (including the unique code).
+> 4. Create an idempotent Webhook receiver endpoint that listens for `payment.success` and returns HTTP 200 OK.
+> 5. Enable seamless switching between Sandbox and Live simply by swapping `.env` values.
 
 ---
 
-## ⚙️ 1. Environment Variables (Kredensial Toko)
+## 🔄 Zero-Code Switching (Sandbox ⇄ Live)
 
-Tambahkan variabel lingkungan berikut pada file `.env` di website toko Anda:
+Integrasi PaymentG dirancang dengan arsitektur **Zero-Code Switching**. Kode checkout dan webhook di toko Anda **100% sama**, Anda hanya perlu mengganti nilai file `.env` di website toko:
 
+### Mode Testing (Sandbox Simulator)
 ```env
-# ==============================================================================
-# PILIH SALAH SATU MODE: TESTING (SANDBOX) vs PRODUCTION (LIVE)
-# ==============================================================================
-
-# 🧪 OPSI A: MODE TESTING (SANDBOX SIMULATOR)
-# Gunakan ini saat develop toko baru. Tidak ada uang asli, bisa klik bayar lewat web!
-PAYMENTG_BASE_URL=https://paymentg.syukurapi.online/api/sandbox
+PAYMENTG_API_URL=https://paymentg.syukurapi.online/api/sandbox
 PAYMENTG_API_KEY=ak_sbx_xxxxxxxxxxxxxxxxxxxxxxxx
-PAYMENTG_WEBHOOK_SECRET=sbx_sec_xxxxxxxxxxxxxxxxxxxxxxxx
-
-# 🚀 OPSI B: MODE LIVE (UANG ASLI)
-# Cukup tukar nilai ini saat toko Anda sudah siap jualan uang asli (kode toko 100% sama!):
-# PAYMENTG_BASE_URL=https://paymentg.syukurapi.online/api
-# PAYMENTG_API_KEY=ak_xxxxxxxxxxxxxxxxxxxxxxxx
-# PAYMENTG_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+*(Bisa disimulasikan lunas 1-klik di dashboard `/sandbox` tanpa uang asli).*
+
+### Mode Production (Uang Asli)
+```env
+PAYMENTG_API_URL=https://paymentg.syukurapi.online/api
+PAYMENTG_API_KEY=ak_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+*(Terhubung langsung ke mutasi uang riil ShopeePay).*
 
 ---
 
-## 🌐 2. API Contract (Spesifikasi Request & Response)
+## 📡 Kontrak API Toko
 
-Semua komunikasi dari Web Toko ke PaymentG menggunakan format **JSON** melalui HTTP REST.
+Semua request menggunakan format JSON standar dan menyertakan header `X-API-Key`.
 
-### A. Buat Tagihan QRIS (`POST /api/orders`)
-Dipanggil oleh backend web toko Anda saat pembeli memilih metode bayar QRIS dan menekan tombol *"Bayar"*.
+### 1. Buat Tagihan QRIS (`POST {PAYMENTG_API_URL}/orders`)
 
-* **URL:** `{PAYMENTG_BASE_URL}/api/orders`
-* **Method:** `POST`
-* **Headers:**
+Dipanggil oleh backend toko saat pembeli menekan tombol *"Bayar dengan QRIS"*.
+
+#### Request
+- **Method:** `POST`
+- **Headers:**
   ```http
   Content-Type: application/json
   X-API-Key: {PAYMENTG_API_KEY}
   ```
-* **Request Body (JSON):**
+- **Body:**
   ```json
   {
-    "amount": 50000,
     "reference_id": "INV-2026-0001",
+    "amount": 50000,
     "expiry_minutes": 15,
-    "metadata": "User: Budi | Produk: Item ABC"
+    "metadata": "User: Budi | Paket Pro"
   }
   ```
-  * `amount` *(integer, wajib)*: Harga asli produk dalam Rupiah (tanpa titik/koma).
-  * `reference_id` *(string, opsional)*: Nomor Invoice / Order ID unik dari database web toko Anda.
-  * `expiry_minutes` *(integer, opsional, default: 15)*: Durasi kedaluwarsa pesanan dalam menit.
-  * `metadata` *(string, opsional)*: Catatan tambahan transaksi.
+  - `amount` *(integer, Wajib)*: Nominal dasar tagihan dalam Rupiah.
+  - `reference_id` *(string, Wajib)*: ID pesanan / nomor invoice unik dari database toko Anda.
+  - `expiry_minutes` *(integer, Opsional)*: Durasi aktif tagihan dalam menit (default: 15).
+  - `metadata` *(string, Opsional)*: Keterangan tambahan transaksi.
 
-* **Response Success (HTTP 201 Created):**
-  ```json
-  {
-    "success": true,
-    "data": {
-      "order_id": "ord_oVVqMw7cBx",
-      "reference_id": "INV-2026-0001",
-      "original_amount": 50000,
-      "unique_code": 237,
-      "total_amount": 50237,
-      "status": "PENDING",
-      "qr_url": "/api/orders/ord_oVVqMw7cBx/qr.png",
-      "expires_at": "2026-10-02T16:30:00Z",
-      "expires_in_seconds": 900
-    }
+#### Response (HTTP 201 Created)
+```json
+{
+  "success": true,
+  "data": {
+    "order_id": "ord_oVVqMw7cBx",
+    "reference_id": "INV-2026-0001",
+    "original_amount": 50000,
+    "unique_code": 237,
+    "total_amount": 50237,
+    "status": "PENDING",
+    "qr_url": "/api/orders/ord_oVVqMw7cBx/qr.png",
+    "expires_at": "2026-10-02T16:30:00Z",
+    "expires_in_seconds": 900
   }
-  ```
-* **Data Penting untuk Frontend:**
-  * `total_amount`: **Nominal wajib yang harus dibayar pembeli** (Rp 50.237). Harus ditonjolkan di UI toko!
-  * `qr_url`: Gambar QRIS PNG. URL lengkapnya adalah `{PAYMENTG_BASE_URL}{qr_url}`.
+}
+```
+
+> ⚠️ **KRITIS UNTUK FRONTEND TOKO:**
+> Pembeli **wajib** mentransfer tepat sejumlah **`total_amount`** (Rp 50.237). 3-digit kode unik (`237`) digunakan poller otomatis untuk mengidentifikasi pembayaran pembeli secara presisi.
 
 ---
 
-### B. Ambil Gambar QRIS (`GET /api/orders/:id/qr.png`)
-URL publik untuk menampilkan gambar QR code langsung di HTML tanpa memerlukan header otorisasi.
+### 2. Tampilkan Gambar QR Code (`GET /qr.png`)
 
-* **URL:** `{PAYMENTG_BASE_URL}/api/orders/{order_id}/qr.png`
-* **Method:** `GET`
-* **Content-Type:** `image/png`
-* **Contoh di HTML Frontend:**
-  ```html
-  <img src="https://paymentg.syukurapi.online/api/orders/ord_oVVqMw7cBx/qr.png" alt="Scan QRIS" width="240" />
-  ```
+URL gambar QRIS bersifat publik dan dapat langsung disematkan pada tag HTML tanpa header otorisasi:
+
+```html
+<!-- Live Mode -->
+<img src="https://paymentg.syukurapi.online/api/orders/{order_id}/qr.png" alt="Scan QRIS" width="280" />
+
+<!-- Sandbox Mode -->
+<img src="https://paymentg.syukurapi.online/api/sandbox/orders/{order_id}/qr.png" alt="Scan QRIS" width="280" />
+```
 
 ---
 
-### C. Cek Status Pesanan Manual (`GET /api/orders/:id`)
-Dipanggil oleh frontend atau backend web toko untuk memeriksa apakah pesanan sudah lunas.
+### 3. Cek Status Pesanan (`GET {PAYMENTG_API_URL}/orders/:id`)
 
-* **URL:** `{PAYMENTG_BASE_URL}/api/orders/{order_id}`
-* **Method:** `GET`
-* **Headers:** `X-API-Key: {PAYMENTG_API_KEY}`
-* **Response (HTTP 200 OK):**
+Dipanggil untuk memeriksa status terkini (misal via interval polling client-side).
+
+- **Method:** `GET`
+- **Headers:** `X-API-Key: {PAYMENTG_API_KEY}`
+- **Response (HTTP 200 OK):**
   ```json
   {
     "success": true,
@@ -126,149 +125,115 @@ Dipanggil oleh frontend atau backend web toko untuk memeriksa apakah pesanan sud
     }
   }
   ```
-  *Nilai `status`:*
-  * `PENDING` ➔ Menunggu pembayaran pembeli.
-  * `PAID` ➔ Sudah dibayar lunas & diverifikasi masuk ShopeePay.
-  * `EXPIRED` ➔ Sudah lewat batas waktu (misal >15 menit).
-  * `CANCELLED` ➔ Dibatalkan.
+  *Nilai status:* `PENDING`, `PAID`, `EXPIRED`, `CANCELLED`.
 
 ---
 
-### D. Trigger Verifikasi Instan / Tombol "Saya Sudah Bayar" (`POST /api/orders/:id/check`)
-Jika pembeli menekan tombol *"Saya Sudah Bayar"* di web Anda, panggil endpoint ini untuk langsung memeriksa mutasi ShopeePay secara instan tanpa menunggu siklus polling otomatis.
+### 4. Tombol "Saya Sudah Bayar" (`POST {PAYMENTG_API_URL}/orders/:id/check`)
 
-* **URL:** `{PAYMENTG_BASE_URL}/api/orders/{order_id}/check`
-* **Method:** `POST`
-* **Headers:** `X-API-Key: {PAYMENTG_API_KEY}`
-* **Response (HTTP 200 OK):** Mengembalikan objek order terbaru (status `PAID` atau tetap `PENDING` jika belum terdeteksi).
+Jika pembeli menekan tombol konfirmasi bayar di web toko, panggil endpoint ini untuk langsung memicu verifikasi mutasi ShopeePay tanpa menunggu interval polling rutin.
 
----
-
-### E. Batalkan Pesanan (`POST /api/orders/:id/cancel`)
-Jika pembeli menekan tombol *"Ganti Metode Pembayaran"* atau *"Batal"*. Nominal unik akan langsung dilepas agar bisa dipakai transaksi lain.
-
-* **URL:** `{PAYMENTG_BASE_URL}/api/orders/{order_id}/cancel`
-* **Method:** `POST`
-* **Headers:** `X-API-Key: {PAYMENTG_API_KEY}`
+- **Method:** `POST`
+- **Headers:** `X-API-Key: {PAYMENTG_API_KEY}`
 
 ---
 
-## 🔔 3. Webhook Receiver Specification (Wajib Diimplementasikan di Web Toko)
+## 🔔 Webhook Notifikasi (Wajib Ada di Web Toko)
 
-PaymentG akan otomatis mengirimkan notifikasi HTTP POST ke URL Webhook website Anda saat pembayaran berhasil diverifikasi.
+Saat transaksi dinyatakan lunas, PaymentG mengirimkan HTTP POST otomatis ke `webhook_url` yang didaftarkan.
 
-### Header yang Dikirim oleh PaymentG:
-```http
-Content-Type: application/json
-X-Webhook-Event: payment.success
-X-Webhook-Signature: sha256=<hex_hmac_sha256>
-```
+### Format Request dari PaymentG
+- **Headers:**
+  ```http
+  Content-Type: application/json
+  X-Webhook-Event: payment.success
+  ```
+- **Body JSON:**
+  ```json
+  {
+    "event": "payment.success",
+    "order_id": "ord_oVVqMw7cBx",
+    "reference_id": "INV-2026-0001",
+    "original_amount": 50000,
+    "unique_code": 237,
+    "total_amount": 50237,
+    "paid_at": "2026-10-02T16:18:24Z",
+    "shopee_tx_id": "122722636469377153"
+  }
+  ```
 
-### Payload Body yang Dikirim oleh PaymentG:
-```json
-{
-  "event": "payment.success",
-  "order_id": "ord_oVVqMw7cBx",
-  "reference_id": "INV-2026-0001",
-  "original_amount": 50000,
-  "unique_code": 237,
-  "total_amount": 50237,
-  "paid_at": "2026-10-02T16:18:24Z",
-  "shopee_tx_id": "122722636469377153"
-}
-```
-
-### 🔒 Aturan Keamanan Verifikasi Tanda Tangan (HMAC-SHA256):
-Backend web toko Anda **wajib memverifikasi signature** sebelum mengubah status pesanan di database:
-1. Ambil **RAW request body** (teks JSON asli mentah, bukan yang sudah di-parse).
-2. Hitung HMAC-SHA256 dari teks mentah tersebut menggunakan `PAYMENTG_WEBHOOK_SECRET`.
-3. Bandingkan dengan header `X-Webhook-Signature` menggunakan algoritma *timing-safe equal*.
+### Kewajiban Endpoint Toko
+1. Periksa apakah `event === "payment.success"`.
+2. Temukan pesanan di database toko berdasarkan `reference_id`.
+3. Jika status pesanan belum `PAID`, ubah menjadi `PAID` dan aktifkan pesanan/layanan pembeli.
+4. Kembalikan status HTTP `200 OK` dengan respons JSON `{ "status": "ok" }`.
 
 ---
 
-## 💻 4. Template Kode Implementasi Siap Pakai
+## 💻 Template Kode Implementasi Siap Pakai
 
-### Pilihan A: Implementasi PHP / Laravel
+### 1. PHP / Laravel (`PaymentWebhookController.php`)
 
-#### 1. Webhook Controller (`PaymentWebhookController.php`)
 ```php
 <?php
 
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Order; // Model pesanan toko Anda
+use App\Models\Order;
 
 class PaymentWebhookController extends Controller
 {
     public function handle(Request $request)
     {
-        $secret = env('PAYMENTG_WEBHOOK_SECRET');
-        $signatureHeader = $request->header('X-Webhook-Signature');
-        $rawPayload = $request->getContent();
+        $payload = $request->json()->all();
 
-        // 1. Verifikasi HMAC-SHA256
-        $expectedSignature = 'sha256=' . hash_hmac('sha256', $rawPayload, $secret);
-        if (!hash_equals($expectedSignature, (string)$signatureHeader)) {
-            return response()->json(['error' => 'Invalid signature'], 401);
+        if (($payload['event'] ?? '') !== 'payment.success') {
+            return response()->json(['status' => 'ignored'], 200);
         }
 
-        // 2. Baca data pesanan
-        $data = json_decode($rawPayload, true);
-        if (($data['event'] ?? '') === 'payment.success') {
-            $invoiceNumber = $data['reference_id'];
-            $shopeeTxId    = $data['shopee_tx_id'];
-            $totalPaid     = $data['total_amount'];
+        $invoiceId  = $payload['reference_id'];
+        $shopeeTxId = $payload['shopee_tx_id'];
 
-            // 3. Update database pesanan web Anda
-            $order = Order::where('invoice_number', $invoiceNumber)->first();
-            if ($order && $order->status !== 'PAID') {
-                $order->update([
-                    'status'        => 'PAID',
-                    'paid_at'       => now(),
-                    'payment_tx_id' => $shopeeTxId,
-                ]);
+        $order = Order::where('invoice_number', $invoiceId)->first();
+        if ($order && $order->status !== 'PAID') {
+            $order->update([
+                'status'        => 'PAID',
+                'paid_at'       => now(),
+                'shopee_tx_id'  => $shopeeTxId,
+            ]);
 
-                // TODO: Kirim notifikasi WhatsApp / Email ke pembeli atau aktifkan produk
-            }
+            // TODO: Kirim notifikasi / proses pengiriman barang
         }
 
-        return response()->json(['status' => 'ok']);
+        return response()->json(['status' => 'ok'], 200);
     }
 }
 ```
 
 ---
 
-### Pilihan B: Implementasi Node.js / Express / Next.js
+### 2. Node.js / Express (`routes/webhook.js`)
 
-#### Webhook Handler (`webhook.js` / Route API)
 ```javascript
 const express = require('express');
-const crypto = require('crypto');
 const router = express.Router();
+const db = require('../db'); // Database toko Anda
 
-// PENTING: Gunakan express.raw({ type: 'application/json' }) untuk membaca raw body
-router.post('/api/webhook/paymentg', express.raw({ type: 'application/json' }), async (req, res) => {
-    const secret = process.env.PAYMENTG_WEBHOOK_SECRET;
-    const signature = req.headers['x-webhook-signature'];
-    const rawBody = req.body.toString('utf-8');
+router.post('/api/webhook/paymentg', express.json(), async (req, res) => {
+    const payload = req.body;
 
-    // 1. Verifikasi HMAC
-    const expectedSignature = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-    
-    if (signature !== expectedSignature) {
-        return res.status(401).json({ error: 'Invalid signature' });
-    }
-
-    // 2. Proses pembayaran
-    const payload = JSON.parse(rawBody);
     if (payload.event === 'payment.success') {
         const invoiceId = payload.reference_id;
         const shopeeTxId = payload.shopee_tx_id;
-        
-        console.log(`[PAYMENT SUCCESS] Invoice ${invoiceId} lunas! Shopee TX: ${shopeeTxId}`);
-        // TODO: Update database toko Anda -> set status = 'PAID'
+
+        // Update database pesanan web toko
+        await db.orders.update({
+            where: { invoiceId: invoiceId },
+            data: { status: 'PAID', paidAt: new Date(), txId: shopeeTxId }
+        });
+
+        console.log(`[PAYMENT SUCCESS] Invoice ${invoiceId} lunas!`);
     }
 
     return res.status(200).json({ status: 'ok' });
@@ -279,56 +244,51 @@ module.exports = router;
 
 ---
 
-## 🎨 5. Alur UI Checkout Frontend yang Direkomendasikan
+### 3. Python / FastAPI (`main.py`)
 
-Saat pembeli berada di halaman pembayaran:
-1. **Tampilkan Nominal Tepat:**
-   * Tampilkan nominal dengan jelas, beri label penekanan: *"Transfer Tepat Rp 50.237 (termasuk 3 digit kode unik)"*.
-2. **Tampilkan Gambar QRIS:**
-   * `<img src="http://api-url/api/orders/{order_id}/qr.png" width="260" />`
-3. **Pasang Realtime Polling (Interval 3 Detik):**
-   ```javascript
-   const timer = setInterval(async () => {
-       const res = await fetch(`/api/orders/status?order_id=${orderId}`);
-       const data = await res.json();
-       if (data.status === 'PAID') {
-           clearInterval(timer);
-           // Sembunyikan QRIS, tampilkan pesan sukses / redirect
-           window.location.href = `/checkout/success?invoice=${invoiceId}`;
-       }
-   }, 3000);
-   ```
-4. **Pasang Countdown Timer (15 Menit):**
-   * Jika waktu habis, ubah tombol menjadi *"Tagihan Kedaluwarsa, Buat Tagihan Baru"*.
+```python
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from typing import Optional
 
----
+app = FastAPI()
 
-## 🧪 6. Cara Menguji Pembayaran Tanpa Uang Asli (Mode Sandbox)
+class WebhookPayload(BaseModel):
+    event: str
+    order_id: str
+    reference_id: str
+    original_amount: int
+    unique_code: int
+    total_amount: int
+    paid_at: str
+    shopee_tx_id: str
 
-Saat Anda sedang mengembangkan website toko, Anda tidak perlu melakukan transfer uang asli berulang kali! Cukup gunakan fitur **Sandbox Simulator**:
-
-1. **Buka Dashboard Sandbox di Browser:**
-   Akses `https://paymentg.syukurapi.online/sandbox/` (atau `http://localhost:3200/sandbox/`). Masukkan PIN `2207`.
-2. **Daftarkan App Testing:**
-   Buka tab **"🔑 Kelola App Sandbox"**, daftarkan toko testing Anda dan webhook URL-nya (misal `http://localhost:8000/api/webhook` atau `https://webhook.site/...`). Salin `API Key (ak_sbx_...)` dan `Webhook Secret` ke `.env` web toko Anda.
-3. **Lakukan Checkout di Web Toko:**
-   Web toko Anda akan memanggil `POST {PAYMENTG_BASE_URL}/orders` (ingat: `PAYMENTG_BASE_URL` diisi dengan akhiran `/api/sandbox`).
-4. **Simulasikan Pembayaran Lunas dengan 1 Klik:**
-   Buka kembali halaman `/sandbox/` di tab **"📜 Mutasi Transaksi Sandbox"**. Tagihan Anda akan muncul dengan status `PENDING`.
-   Klik tombol hijau: **`[💳 Bayar Sekarang]`**!
-5. **Lihat Hasilnya:**
-   * PaymentG akan seketika menembakkan Webhook nyata ber-signature HMAC-SHA256 ke web toko Anda.
-   * Webhook inspector di halaman `/sandbox/` akan memperlihatkan status respons dari server toko Anda (misal HTTP 200 OK).
-   * Halaman checkout pembeli di web toko Anda otomatis mendeteksi lunas dan melakukan redirect sukses!
+@app.post("/api/webhook/paymentg")
+async def handle_payment_webhook(payload: WebhookPayload):
+    if payload.event == "payment.success":
+        # TODO: Update pesanan di database toko Anda
+        print(f"Invoice {payload.reference_id} lunas via Shopee Tx {payload.shopee_tx_id}")
+    
+    return {"status": "ok"}
+```
 
 ---
 
-## 🚀 Checklist untuk AI Agent
+## 🧪 Alur Pengujian Cepat (Sandbox Simulator)
 
-Saat mengintegrasikan ke web toko baru, pastikan hal berikut tercentang:
-- [ ] File `.env` sudah memuat `PAYMENTG_BASE_URL`, `PAYMENTG_API_KEY`, dan `PAYMENTG_WEBHOOK_SECRET`.
-- [ ] Endpoint pembuatan order memanggil `POST {PAYMENTG_BASE_URL}/orders` dan menangani error jika server pembayaran offline.
-- [ ] Halaman checkout menampilkan `total_amount` (nominal akhir yang sudah ada kode uniknya), bukan harga aslinya.
-- [ ] Endpoint Webhook memvalidasi header `X-Webhook-Signature` dengan `hash_equals` / timing-safe crypto.
-- [ ] Webhook membalas HTTP `200 OK` agar server PaymentG tahu notifikasi sudah sampai.
-- [ ] URL Webhook toko Anda didaftarkan di Dashboard PaymentG (Tab *"Kelola Web App"* untuk Live, atau Tab *"Kelola App Sandbox"* di `/sandbox` untuk Testing).
+1. **Buka Simulator:** Masuk ke `https://paymentg.syukurapi.online/sandbox/` (PIN: `2207`).
+2. **Daftarkan Web Toko:** Buka tab **"🔑 Kelola Web Toko"**, masukkan nama toko dan URL webhook Anda. Salin `API Key` yang muncul.
+3. **Simulasi Checkout:** Jalankan checkout di web toko Anda menggunakan API Key sandbox.
+4. **Klik Bayar:** Kembali ke `/sandbox/` tab **"📜 Mutasi Transaksi"**, tagihan akan berstatus `PENDING`. Klik tombol **`[💳 Bayar Sekarang]`**.
+5. **Cek Webhook Inspector:** Kotak log akan menampilkan status pengiriman webhook ke server toko Anda (misal `HTTP 200 OK`). Halaman toko Anda otomatis terupdate lunas!
+
+---
+
+## ✅ Integration Checklist for AI Agent
+
+- [ ] Variabel `PAYMENTG_API_URL` dan `PAYMENTG_API_KEY` tersimpan aman di `.env`.
+- [ ] Endpoint pembuatan order toko memanggil `{PAYMENTG_API_URL}/orders`.
+- [ ] Tampilan antarmuka pembayaran menonjolkan **`total_amount`** (bukan harga awal).
+- [ ] Webhook receiver memvalidasi event `payment.success` dan membalas `HTTP 200 OK`.
+- [ ] Tersedia polling status / tombol *"Saya Sudah Bayar"* untuk kenyamanan pembeli.
+- [ ] Webhook URL telah didaftarkan di dashboard PaymentG.

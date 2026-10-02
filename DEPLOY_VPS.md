@@ -1,75 +1,88 @@
-# 🚀 VPS Deployment & Setup Guide (AI Agent & Developer Prompt)
+# 🚀 PaymentG VPS Deployment Guide (Production & AI Agent)
 
-Panduan instalasi ini dirancang khusus agar **AI Agent CLI di VPS** (seperti Antigravity, Claude Code, Cursor, SSH Agent, dll.) dapat langsung membaca file ini, mengeksekusi instalasi dari awal sampai selesai secara otomatis, dan mengembalikan status verifikasi.
-
----
-
-## 🤖 Prompt Context for VPS AI Agent
-> **Instruction for AI Agent on VPS:**
-> You are tasked with installing, compiling, and running **PaymentG** on this Linux VPS (Ubuntu/Debian).
-> Please execute the steps below sequentially. Once done, verify that `curl http://localhost:3200/api/health` returns `status: ok` and output the final readiness report.
+Panduan deployment produksi untuk **PaymentG** pada Linux VPS (Ubuntu 22.04/24.04 LTS atau Debian 11/12). Dokumen ini disusun ringkas, padat, dan langsung dapat dieksekusi oleh **DevOps Engineer** maupun **AI Agent CLI di VPS** (Antigravity, Cursor, Claude Code, SSH Agent).
 
 ---
 
-## 📋 Spesifikasi Kebutuhan VPS
-* **OS:** Ubuntu 22.04 / 24.04 LTS atau Debian 11 / 12
-* **Spesifikasi Minimum:** 1 Core CPU, 1 GB RAM (Spesifikasi Anda 2 Core, 2 GB RAM sudah **SANGAT LEBIH DARI CUKUP**).
-* **Port Terbuka:** `3200` (atau reverse proxy Nginx).
+## 🤖 Context for VPS AI Agent
+
+> **Agent Instruction:**
+> Execute the steps in this guide sequentially.
+> The target service is a compiled Go binary (`paymentg`) listening on internal port `3200`, monitored by `systemd`, exposed via Cloudflare Tunnel (or Nginx) under domain `paymentg.syukurapi.online`.
+> Complete each step, verify with `curl http://localhost:3200/api/health`, and ensure HTTP 200 OK.
 
 ---
 
-## 🛠️ Langkah Instalasi Otomatis (Eksekusi Berurutan)
+## 📋 Prasyarat Sistem
 
-### Langkah 1: Update Sistem & Install Paket Dasar
+- **OS:** Ubuntu 20.04/22.04/24.04 LTS atau Debian 11/12
+- **Resource Minimum:** 1 vCPU, 1 GB RAM (Rekomendasi: 2 vCPU, 2 GB RAM)
+- **Port:** `3200` (Internal localhost, tidak perlu dibuka ke publik jika menggunakan Cloudflare Tunnel)
+
+---
+
+## 🛠️ Langkah Instalasi Berurutan
+
+### Langkah 1: Update Paket Dasar
 ```bash
-sudo apt update && sudo apt install -y curl git python3 python3-pip python3-venv build-essential
+sudo apt update && sudo apt install -y curl git build-essential python3 python3-pip python3-venv
 ```
 
-### Langkah 2: Install Go (Jika Belum Terpasang)
-Jika `go version` belum ada:
+### Langkah 2: Install Go 1.23+ (Jika Belum Terpasang)
 ```bash
-# Unduh dan pasang Go 1.23+ resmi
-wget -q https://go.dev/dl/go1.23.6.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.23.6.linux-amd64.tar.gz
-rm go1.23.6.linux-amd64.tar.gz
-
-# Tambahkan ke PATH
-export PATH=$PATH:/usr/local/go
-echo 'export PATH=$PATH:/usr/local/go' >> ~/.bashrc
+if ! command -v go &> /dev/null; then
+  wget -q https://go.dev/dl/go1.23.6.linux-amd64.tar.gz
+  sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.23.6.linux-amd64.tar.gz
+  rm go1.23.6.linux-amd64.tar.gz
+  echo 'export PATH=$PATH:/usr/local/go' >> ~/.bashrc
+  export PATH=$PATH:/usr/local/go
+fi
+go version
 ```
 
-### Langkah 3: Build Binary PaymentG Linux
+### Langkah 3: Compile Binary Linux
 Di dalam direktori project (`paymentg`):
 ```bash
-# Pastikan toolchain lokal digunakan dan compile binary Linux
 export GOTOOLCHAIN=local
 go build -ldflags="-s -w" -o paymentg .
 chmod +x paymentg
 ```
 
-### Langkah 4: Setup Python & Playwright (Headless Chromium)
-```bash
-# Install library python yang dibutuhkan
-pip3 install --break-system-packages playwright httpx
-
-# Install Chromium headless beserta dependensi sistem Linux
-playwright install chromium
-playwright install-deps chromium
-```
-
-### Langkah 5: Siapkan File Konfigurasi `.env`
-Jika file `.env` belum ada, salin dari contoh:
+### Langkah 4: Setup Lingkungan `.env`
+Siapkan konfigurasi produksi:
 ```bash
 if [ ! -f .env ]; then
   cp .env.example .env
 fi
 ```
-*(Pastikan `PORT=3200`, `ADMIN_KEY`, dan `QRIS_STRING` sudah terisi di `.env`)*.
+Pastikan variabel kunci berikut terisi di `.env`:
+```env
+PORT=3200
+ADMIN_KEY=adm_secret_paymentg_2026
+SHOPEE_TOKEN=
+QRIS_STRING=
+DEFAULT_EXPIRY_MINUTES=15
+POLL_INTERVAL_SECONDS=5
+DATA_DIR=./data
+```
 
-### Langkah 6: Pasang Systemd Service (Auto-Start 24 Jam)
-Dapatkan lokasi direktori saat ini:
+### Langkah 5: Setup Playwright Headless (Auto-Refresh Token)
+Diperlukan untuk memperpanjang sesi token ShopeePay secara otomatis tanpa membuka browser:
 ```bash
-CURRENT_DIR=$(pwd)
+pip3 install --break-system-packages playwright httpx
+playwright install chromium
+playwright install-deps chromium
+```
+
+> **Sesi Awal:**
+> Salin folder profil sesi dari komputer lokal:
+> `scp -r data/browser_profile user@vps:/opt/paymentg/data/`
+> Atau cukup masukkan token aktif via menu **"✏️ Tempel Token"** di Dashboard web.
+
+### Langkah 6: Daftarkan Systemd Service (Auto-Start 24/7)
+```bash
+APP_DIR=$(pwd)
+CURRENT_USER=$(whoami)
 
 sudo bash -c "cat <<EOF > /etc/systemd/system/paymentg.service
 [Unit]
@@ -78,101 +91,109 @@ After=network.target
 
 [Service]
 Type=simple
-User=$(whoami)
-WorkingDirectory=$CURRENT_DIR
-ExecStart=$CURRENT_DIR/paymentg
+User=${CURRENT_USER}
+WorkingDirectory=${APP_DIR}
+ExecStart=${APP_DIR}/paymentg
 Restart=always
 RestartSec=5
 Environment=PORT=3200
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
 EOF"
 
-# Reload dan aktifkan service
 sudo systemctl daemon-reload
 sudo systemctl enable --now paymentg
 ```
 
 ---
 
-## 🌐 Langkah 7: Hubungkan ke Cloudflare Tunnel (Domain: `paymentg.syukurapi.online`)
+## 🌐 Langkah 7: Ekspos Domain Publik (Cloudflare Tunnel)
 
-Sistem menggunakan Cloudflare Tunnel yang sudah aktif di VPS Anda. Ini adalah **jalur keluar terbaik & paling aman**:
-* **Zero Open Port:** Port 3200 tidak perlu dibuka ke publik (`ufw allow 3200` TIDAK diperlukan).
-* **Anti-Bentrok:** PaymentG hanya mendengar di internal `localhost:3200`. Layanan lain di VPS tetap aman 100%.
-* **Free SSL & DDoS Protection:** Otomatis HTTPS resmi oleh Cloudflare Edge.
+Metode yang direkomendasikan adalah **Cloudflare Tunnel** (Zero Open Port, Free SSL, Anti-DDoS):
 
-### Instruksi untuk Agent VPS:
-
-1. **Cari file konfigurasi Cloudflare Tunnel yang sedang aktif:**
-   ```bash
-   # Cek lokasi config cloudflared (biasanya di /etc/cloudflared/config.yml atau ~/.cloudflared/config.yml)
-   CF_CONFIG="/etc/cloudflared/config.yml"
-   if [ ! -f "$CF_CONFIG" ]; then
-     CF_CONFIG="$HOME/.cloudflared/config.yml"
-   fi
-   echo "Menggunakan config: $CF_CONFIG"
-   ```
-
-2. **Tambahkan Ingress Rule untuk `paymentg.syukurapi.online`:**
-   Sisipkan rule berikut tepat di atas baris `- service: http_status:404`:
+1. **Tambahkan Ingress Rule:**
+   Buka file konfigurasi Cloudflare (`/etc/cloudflared/config.yml` atau `~/.cloudflared/config.yml`), sisipkan sebelum `- service: http_status:404`:
    ```yaml
      - hostname: paymentg.syukurapi.online
        service: http://localhost:3200
    ```
 
-3. **Arahkan DNS Subdomain di Cloudflare:**
-   Jalankan perintah route DNS menggunakan nama tunnel yang sudah ada:
+2. **Route DNS Subdomain:**
    ```bash
-   # Dapatkan nama/UUID tunnel yang aktif
-   cloudflared tunnel list
-
-   # Hubungkan subdomain paymentg.syukurapi.online ke tunnel (ganti <NAMA_TUNNEL> dengan nama tunnel aktif Anda)
    cloudflared tunnel route dns <NAMA_TUNNEL> paymentg.syukurapi.online
    ```
-   *(Atau tambahkan CNAME manual di Dashboard Cloudflare DNS: `paymentg` ➔ `<TUNNEL_UUID>.cfargot.com` dengan status Proxied 🟧)*.
+   *(Atau tambahkan CNAME manual di Cloudflare Dashboard: `paymentg` ➔ `<TUNNEL_UUID>.cfargot.com`)*.
 
-4. **Restart Layanan Cloudflare Tunnel:**
+3. **Restart Cloudflare Tunnel:**
    ```bash
    sudo systemctl restart cloudflared
    ```
 
+### Alternatif: Nginx Reverse Proxy (Jika Tanpa Cloudflare Tunnel)
+```nginx
+server {
+    server_name paymentg.domainanda.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3200;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
 ---
 
-## 🧪 Langkah 8: Verifikasi & Cek Status Layanan
+## 🧪 Langkah 8: Verifikasi Deployment
 
-Jalankan perintah ini untuk memastikan layanan telah aktif sempurna baik secara lokal maupun via domain publik:
+Jalankan perintah pengujian:
 
 ```bash
-# 1. Cek status proses systemd lokal
+# 1. Cek status daemon systemd
 sudo systemctl status paymentg --no-pager
 
-# 2. Uji endpoint healthcheck lokal
+# 2. Uji endpoint internal
 curl -s http://localhost:3200/api/health
 
-# 3. Uji endpoint publik Cloudflare Tunnel (HTTPS)
+# 3. Uji endpoint publik HTTPS
 curl -s https://paymentg.syukurapi.online/api/health
 ```
 
-### Expected Output (200 OK):
+**Hasil yang Diharapkan (HTTP 200 OK):**
 ```json
 {
   "success": true,
   "data": {
     "status": "ok",
     "token_valid": true,
-    "pending_orders": 0
+    "pending_orders": 0,
+    "last_poll_success": true
   }
 }
 ```
 
 ---
 
-## 🔒 Catatan Penting Tentang Playwright di VPS (Headless Mode)
-1. **Tidak Ada Pop-up Jendela:** Di Linux VPS (tanpa desktop GUI), Playwright berjalan **100% di memori latar belakang (Headless)**. Tidak akan ada jendela Chrome yang muncul di terminal.
-2. **Konsumsi Resource:** Saat standby, Playwright memakan **0 MB RAM**. Saat dipanggil untuk menyegarkan token, hanya membutuhkan **~90 MB RAM selama 3 detik**, lalu otomatis menutup kembali.
-3. **Session Awal:**
-   - Anda cukup menyalin folder `data/browser_profile` dari komputer lokal ke VPS (agar sesi Shopee yang sudah login terbawa).
-   - Atau cukup tempel token ShopeePay dari HP Anda menggunakan tombol **"✏️ Tempel Token"** di Dashboard.
+## 🛡️ Pemeliharaan & Troubleshooting
 
+### Memantau Log Realtime
+```bash
+sudo journalctl -u paymentg -f -n 100
+```
+
+### Restart Layanan
+```bash
+sudo systemctl restart paymentg
+```
+
+### Backup Database SQLite
+PaymentG menggunakan mode SQLite WAL. Untuk mencadangkan data tanpa mematikan server:
+```bash
+# Backup database live & sandbox
+sqlite3 data/payment.db ".backup 'data/backup_live_$(date +%F).db'"
+sqlite3 data/sandbox/payment.db ".backup 'data/sandbox/backup_sandbox_$(date +%F).db'"
+```
