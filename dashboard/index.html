@@ -2,98 +2,139 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>PaymentG — Dashboard Merchant QRIS</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- Top Navbar -->
+  <!-- ==========================================
+       0. PIN Access Gate (1x Per Browser Session)
+       ========================================== -->
+  <div id="pin-lockscreen" class="lockscreen-overlay" style="display: none;">
+    <div class="lockscreen-card">
+      <div class="lockscreen-icon">🔒</div>
+      <h2 class="lockscreen-title">PaymentG Dashboard</h2>
+      <p class="lockscreen-desc">Masukkan PIN untuk membuka dashboard merchant</p>
+
+      <form id="pin-form" onsubmit="submitPIN(event)">
+        <div class="pin-input-group">
+          <input type="password" id="pin-field" class="pin-input" maxlength="8" placeholder="••••" autofocus required inputmode="numeric">
+        </div>
+        <button type="submit" id="btn-unlock-pin" class="pin-btn">Buka Akses</button>
+        <div id="pin-error-msg" class="pin-error">PIN akses salah!</div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       1. Top Navbar
+       ========================================== -->
   <header class="navbar">
     <div class="nav-container">
       <a href="#" class="brand">
         <span>PaymentG</span>
-        <span class="brand-badge">ShopeePay QRIS</span>
+        <span class="brand-badge">ShopeePay</span>
       </a>
 
       <div class="nav-status">
-        <div id="server-status-badge" style="font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+        <div id="server-status-badge" style="font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px;">
           <span class="status-dot offline"></span> Menghubungkan...
         </div>
-        <button id="btn-open-settings" class="nav-settings-btn">
-          ⚙️ Pengaturan API
+        <button id="btn-open-settings" class="nav-settings-btn" title="Pengaturan Server API">
+          ⚙️ <span class="hide-mobile">Setting</span>
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Navigation Tabs -->
+  <!-- ==========================================
+       2. Navigation Tabs (Scrollable Mobile)
+       ========================================== -->
   <nav class="tabs-bar">
     <div class="tabs-container">
       <button class="tab-btn active" data-tab="tab-dashboard">📊 Ringkasan</button>
-      <button class="tab-btn" data-tab="tab-orders">📜 Riwayat Transaksi</button>
-      <button class="tab-btn" data-tab="tab-generator">⚡ Buat Tagihan QRIS</button>
-      <button class="tab-btn" data-tab="tab-apps">🔑 Manajemen Web / App</button>
+      <button class="tab-btn" data-tab="tab-orders">📜 Mutasi Transaksi</button>
+      <button class="tab-btn" data-tab="tab-generator">⚡ Buat QRIS</button>
+      <button class="tab-btn" data-tab="tab-apps">🔑 Kelola Web App</button>
     </div>
   </nav>
 
-  <!-- Main Content -->
+  <!-- ==========================================
+       3. Main Container
+       ========================================== -->
   <main class="container">
 
-    <!-- Tab 1: Dashboard Ringkasan -->
+    <!-- Tab 1: Dashboard & Health Overview -->
     <section id="tab-dashboard" class="tab-content active">
+      
+      <!-- Visual Health & Session Banner -->
+      <div id="session-banner" class="health-banner connected">
+        <div class="health-info">
+          <div id="session-banner-icon" class="health-icon-large">🟢</div>
+          <div>
+            <div id="session-banner-title" class="health-title">Sesi ShopeePay Terhubung (Login Aktif)</div>
+            <div id="session-banner-desc" class="health-subtitle">Memeriksa status mutasi otomatis di background...</div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="btn-playwright" class="btn btn-primary btn-sm" onclick="triggerPlaywrightRefresh()">
+            🤖 Auto-Login Playwright
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="manualUpdateToken()">
+            ✏️ Tempel Token
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="loadAllData()">
+            🔄 Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
       <div class="stats-grid">
         <div class="card">
-          <div class="stat-label">Total Pemasukan (Lunas)</div>
+          <div class="stat-label">Total Omset Lunas</div>
           <div class="stat-value" id="stat-revenue" style="color: var(--primary);">Rp 0</div>
-          <div class="stat-desc">Akumulasi seluruh pembayaran terverifikasi</div>
+          <div class="stat-desc">Akumulasi uang masuk terverifikasi</div>
         </div>
 
         <div class="card">
           <div class="stat-label">Transaksi Berhasil</div>
           <div class="stat-value" id="stat-paid-count" style="color: var(--success);">0</div>
-          <div class="stat-desc">Order berhasil lunas dicocokkan</div>
+          <div class="stat-desc">Order otomatis dicocokkan</div>
         </div>
 
         <div class="card">
-          <div class="stat-label">Sedang Menunggu (Pending)</div>
+          <div class="stat-label">Menunggu Bayar (Pending)</div>
           <div class="stat-value" id="stat-pending-count" style="color: var(--warning);">0</div>
-          <div class="stat-desc">QRIS aktif yang belum dibayar</div>
+          <div class="stat-desc">QRIS aktif di web pembeli</div>
         </div>
 
         <div class="card">
-          <div class="stat-label">Sesi ShopeePay Partner</div>
-          <div class="stat-value" id="token-status-display" style="font-size: 20px;">-</div>
-          <div class="stat-desc">Status autentikasi poller mutasi</div>
+          <div class="stat-label">Total Order Dibuat</div>
+          <div class="stat-value" id="stat-total-orders">0</div>
+          <div class="stat-desc">Termasuk lunas, pending, & batal</div>
         </div>
       </div>
 
-      <!-- Quick Action Card -->
-      <div class="card" style="margin-bottom: 24px;">
-        <h3 style="font-size: 16px; margin-bottom: 12px;">Kontrol Sesi ShopeePay</h3>
-        <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 16px;">
-          Pilih salah satu metode untuk menyegarkan session ShopeePay saat token kadaluwarsa:
-        </p>
-        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-          <button id="btn-playwright" class="btn btn-primary" onclick="triggerPlaywrightRefresh()">
-            🤖 Auto-Refresh via Playwright
-          </button>
-          <button class="btn btn-secondary" onclick="manualUpdateToken()">
-            ✏️ Input Token Manual
-          </button>
-          <button class="btn btn-secondary" onclick="checkHealth()">
-            🔄 Cek Ulang Status Server
-          </button>
-        </div>
+      <!-- Quick Tips -->
+      <div class="card" style="font-size: 13px; line-height: 1.6; color: var(--text-muted);">
+        <b>💡 Tips Menjaga Sesi ShopeePay:</b>
+        <ul style="padding-left: 20px; margin-top: 6px;">
+          <li>Sesi token ShopeePay biasanya aktif berhari-hari hingga berminggu-minggu selama akun tidak di-logout.</li>
+          <li>Jika banner di atas berubah menjadi <b style="color: var(--danger);">MERAH (Terputus)</b>, klik tombol <b>Auto-Login Playwright</b> atau tempel token baru.</li>
+          <li>Kapasitas kode unik 1–999 otomatis di-reset saat pesanan lunas atau kedaluwarsa 15 menit.</li>
+        </ul>
       </div>
     </section>
 
-    <!-- Tab 2: Riwayat Transaksi -->
+    <!-- Tab 2: Riwayat Mutasi Transaksi -->
     <section id="tab-orders" class="tab-content">
       <div class="card">
         <div class="table-header">
-          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="search-order" class="search-input" placeholder="Cari Order ID, Ref ID, atau Shopee Tx ID..." oninput="renderOrdersTable()">
+          <div class="table-controls-left">
+            <input type="text" id="search-order" class="search-input" placeholder="Cari Order / Invoice / Shopee Tx ID..." oninput="renderOrdersTable()">
             <select id="filter-status" class="filter-select" onchange="renderOrdersTable()">
               <option value="ALL">Semua Status</option>
               <option value="PENDING">Hanya PENDING</option>
@@ -103,10 +144,9 @@
             </select>
           </div>
 
-          <div style="display: flex; align-items: center; gap: 16px;">
-            <label style="font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: pointer;">
-              <input type="checkbox" id="auto-refresh-toggle" checked>
-              Auto Refresh (5s)
+          <div style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+            <label style="font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+              <input type="checkbox" id="auto-refresh-toggle" checked> Auto Refresh (5s)
             </label>
             <button class="btn btn-secondary btn-sm" onclick="loadOrders()">Muat Ulang</button>
           </div>
@@ -116,8 +156,8 @@
           <table>
             <thead>
               <tr>
-                <th>Order ID / Ref</th>
-                <th>Nominal</th>
+                <th>Order / Invoice</th>
+                <th>Nominal Asli</th>
                 <th>Kode Unik</th>
                 <th>Total Bayar</th>
                 <th>Status</th>
@@ -127,23 +167,21 @@
               </tr>
             </thead>
             <tbody id="orders-tbody">
-              <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Memuat data...</td>
-              </tr>
+              <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">Memuat data mutasi...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- Tab 3: Buat Tagihan QRIS -->
+    <!-- Tab 3: Buat Tagihan QRIS Baru -->
     <section id="tab-generator" class="tab-content">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
         <!-- Form Generator -->
         <div class="card">
-          <h2 style="font-size: 18px; margin-bottom: 6px;">Buat Tagihan QRIS Dinamis</h2>
-          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
-            Generate QRIS ber-nominal unik secara instan untuk diuji coba langsung.
+          <h2 style="font-size: 17px; margin-bottom: 4px;">Buat Tagihan QRIS Dinamis</h2>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px;">
+            Simulasikan pembuatan tagihan QRIS ber-nominal unik secara instan.
           </p>
 
           <form onsubmit="submitCreateOrder(event)">
@@ -154,7 +192,7 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">No. Invoice / Reference ID (Opsional)</label>
+              <label class="form-label">No. Invoice / Reference ID</label>
               <input type="text" id="gen-ref-id" class="form-input" placeholder="INV-2026-XXXX">
             </div>
 
@@ -164,31 +202,31 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Catatan Transaksi (Metadata)</label>
-              <input type="text" id="gen-metadata" class="form-input" placeholder="User: Budi | Item: Pulsa 10k">
+              <label class="form-label">Catatan Metadata</label>
+              <input type="text" id="gen-metadata" class="form-input" placeholder="Item: Donasi Web">
             </div>
 
-            <button type="submit" id="btn-generate-order" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;">
+            <button type="submit" id="btn-generate-order" class="btn btn-primary" style="width: 100%; justify-content: center;">
               Generate QRIS Tagihan
             </button>
           </form>
         </div>
 
-        <!-- Preview Result -->
+        <!-- QR Preview -->
         <div class="card" id="qr-result-box" style="display: none;">
           <h3 style="font-size: 16px; margin-bottom: 4px;">QRIS Tagihan Aktif</h3>
-          <p style="font-size: 12px; color: var(--text-muted);">Scan QR di bawah menggunakan ShopeePay / Bank / E-Wallet</p>
+          <p style="font-size: 12px; color: var(--text-muted);">Scan QR menggunakan ShopeePay / Bank / E-Wallet</p>
 
-          <div class="qr-preview-box" style="margin-top: 14px;">
-            <img id="qr-res-img" class="qr-image" src="" alt="QR Code">
-            <div style="font-size: 12px; color: #e65100; font-weight: 600; margin-bottom: 4px;">
+          <div class="qr-preview-box" style="margin-top: 12px;">
+            <img id="qr-res-img" class="qr-image" src="" alt="QRIS Code">
+            <div style="font-size: 12px; color: #e65100; font-weight: 700; margin-bottom: 2px;">
               ⚠️ Transfer TEPAT (Termasuk Kode Unik +<span id="qr-res-unique">0</span>):
             </div>
             <div id="qr-res-total" class="qr-amount-large">Rp 0</div>
-            <div style="margin-top: 10px;">
+            <div style="margin-top: 8px;">
               <span id="qr-res-status" class="badge badge-pending">MENUNGGU PEMBAYARAN...</span>
             </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 10px;">
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">
               Order ID: <code id="qr-res-id">-</code>
             </div>
           </div>
@@ -198,33 +236,30 @@
 
     <!-- Tab 4: Kelola App -->
     <section id="tab-apps" class="tab-content">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
-        <!-- Form Tambah App -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
         <div class="card">
-          <h2 style="font-size: 18px; margin-bottom: 6px;">Daftarkan Web Toko Baru</h2>
-          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
+          <h2 style="font-size: 17px; margin-bottom: 4px;">Daftarkan Web Toko Baru</h2>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px;">
             Dapatkan API Key dan Webhook Secret untuk web jual-beli Anda.
           </p>
 
           <form onsubmit="submitCreateApp(event)">
             <div class="form-group">
               <label class="form-label">Nama Web Toko *</label>
-              <input type="text" id="app-name" class="form-input" placeholder="Toko Pulsa Online" required>
+              <input type="text" id="app-name" class="form-input" placeholder="Toko Saya" required>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Webhook URL (Notifikasi Pembayaran) *</label>
+              <label class="form-label">Webhook URL (Notifikasi Bayar) *</label>
               <input type="url" id="app-webhook" class="form-input" placeholder="https://tokoku.com/api/webhook" required>
-              <div class="form-help">Endpoint di web Anda yang akan menerima payload saat pembayaran lunas.</div>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;">
+            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">
               Daftarkan Web Toko
             </button>
           </form>
         </div>
 
-        <!-- List Apps -->
         <div class="card">
           <h3 style="font-size: 16px; margin-bottom: 12px;">Daftar Web Terintegrasi</h3>
           <div class="table-responsive">
@@ -249,51 +284,55 @@
 
   </main>
 
-  <!-- Modal Settings -->
+  <!-- ==========================================
+       4. Settings Modal
+       ========================================== -->
   <div id="settings-modal" class="modal-overlay">
     <div class="modal">
       <div class="modal-header">
-        <h3 class="modal-title">Pengaturan Koneksi API</h3>
+        <h3 class="modal-title">Pengaturan API Backend</h3>
         <button id="btn-close-settings" class="modal-close">&times;</button>
       </div>
 
       <div class="form-group">
         <label class="form-label">PaymentG Backend URL</label>
         <input type="text" id="setting-api-url" class="form-input" placeholder="http://localhost:3200">
-        <div class="form-help">Jika frontend ini di-hosting terpisah di Vercel/Netlify, ganti dengan URL VPS Anda (misal https://api.domain.com).</div>
+        <div class="form-help">Jika hosting di Vercel/Netlify, arahkan ke URL VPS Anda (misal https://api.domain.com).</div>
       </div>
 
       <div class="form-group">
         <label class="form-label">X-Admin-Key</label>
         <input type="text" id="setting-admin-key" class="form-input" placeholder="adm_secret_...">
-        <div class="form-help">Digunakan untuk melihat seluruh transaksi, mutasi, dan session ShopeePay.</div>
+        <div class="form-help">Kunci admin server (otomatis terisi saat login PIN 2207).</div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">X-API-Key (Untuk Generator)</label>
+        <label class="form-label">X-API-Key</label>
         <input type="text" id="setting-api-key" class="form-input" placeholder="ak_...">
-        <div class="form-help">Kunci toko untuk membuat pesanan QRIS baru.</div>
+        <div class="form-help">Kunci toko untuk generator QRIS.</div>
       </div>
 
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
         <button class="btn btn-secondary" onclick="closeModal('settings-modal')">Batal</button>
-        <button id="btn-save-settings" class="btn btn-primary">Simpan Pengaturan</button>
+        <button id="btn-save-settings" class="btn btn-primary">Simpan</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal QR Detail -->
+  <!-- ==========================================
+       5. QR Preview Modal
+       ========================================== -->
   <div id="qr-modal" class="modal-overlay">
-    <div class="modal" style="max-width: 380px; text-align: center;">
+    <div class="modal" style="max-width: 360px; text-align: center;">
       <div class="modal-header">
         <h3 class="modal-title" style="font-size: 16px;">QRIS Tagihan</h3>
         <button class="modal-close" onclick="closeModal('qr-modal')">&times;</button>
       </div>
-      <img id="modal-qr-img" class="qr-image" style="width: 220px; height: 220px;" src="" alt="QR">
-      <div style="font-size: 13px; color: var(--text-muted); margin-top: 6px;">Total Tagihan:</div>
-      <div id="modal-qr-amount" class="qr-amount-large" style="font-size: 26px; margin: 4px 0;">Rp 0</div>
+      <img id="modal-qr-img" class="qr-image" src="" alt="QR">
+      <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">Total Tagihan:</div>
+      <div id="modal-qr-amount" class="qr-amount-large">Rp 0</div>
       <div style="font-size: 11px; color: var(--text-muted);">Order ID: <code id="modal-qr-id">-</code></div>
-      <button class="btn btn-secondary" style="width: 100%; margin-top: 18px; justify-content: center;" onclick="closeModal('qr-modal')">Tutup</button>
+      <button class="btn btn-secondary" style="width: 100%; margin-top: 16px; justify-content: center;" onclick="closeModal('qr-modal')">Tutup</button>
     </div>
   </div>
 

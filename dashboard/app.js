@@ -3,9 +3,12 @@
  * Pure Vanilla JS, zero build dependencies.
  */
 
-// 1. Static Default Configuration (Dapat disesuaikan langsung di sini atau lewat UI Settings)
+// 1. Static Configuration (Smart default: localhost saat dev, paymentg.syukurapi.online saat di hosting)
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:";
+const DEFAULT_BACKEND = isLocal ? "http://localhost:3200" : "https://paymentg.syukurapi.online";
+
 const CONFIG = {
-  API_URL: localStorage.getItem("paymentg_api_url") || "http://localhost:3200",
+  API_URL: localStorage.getItem("paymentg_api_url") || DEFAULT_BACKEND,
   ADMIN_KEY: localStorage.getItem("paymentg_admin_key") || "adm_secret_paymentg_2026",
   API_KEY: localStorage.getItem("paymentg_api_key") || "ak_iFV5BsdprjxCb4AnpkCkrYzc"
 };
@@ -18,11 +21,79 @@ let qrCheckTimer = null;
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
+  checkLockScreen();
   setupTabs();
   setupSettingsModal();
+});
+
+// --- 0. PIN Access Gate ---
+function checkLockScreen() {
+  const isUnlocked = sessionStorage.getItem("paymentg_unlocked") === "true";
+  const lockOverlay = document.getElementById("pin-lockscreen");
+
+  if (!isUnlocked) {
+    if (lockOverlay) lockOverlay.style.display = "flex";
+    const field = document.getElementById("pin-field");
+    if (field) setTimeout(() => field.focus(), 100);
+  } else {
+    if (lockOverlay) lockOverlay.style.display = "none";
+    initDashboard();
+  }
+}
+
+async function submitPIN(e) {
+  e.preventDefault();
+  const pinInput = document.getElementById("pin-field");
+  const errElem = document.getElementById("pin-error-msg");
+  const btn = document.getElementById("btn-unlock-pin");
+  const pin = pinInput.value.trim();
+
+  if (!pin) return;
+
+  btn.disabled = true;
+  btn.innerText = "Memverifikasi...";
+  errElem.style.display = "none";
+
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/api/auth/pin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin })
+    });
+    const json = await res.json();
+
+    if (res.ok && json.success) {
+      sessionStorage.setItem("paymentg_unlocked", "true");
+      if (json.data && json.data.admin_key) {
+        CONFIG.ADMIN_KEY = json.data.admin_key;
+        localStorage.setItem("paymentg_admin_key", json.data.admin_key);
+      }
+      document.getElementById("pin-lockscreen").style.display = "none";
+      initDashboard();
+    } else {
+      errElem.innerText = json.error || "PIN akses salah!";
+      errElem.style.display = "block";
+      pinInput.value = "";
+      pinInput.focus();
+    }
+  } catch (err) {
+    // Fallback offline verification if API fails to respond
+    if (pin === "2207") {
+      sessionStorage.setItem("paymentg_unlocked", "true");
+      document.getElementById("pin-lockscreen").style.display = "none";
+      initDashboard();
+    } else {
+      errElem.innerText = "Gagal menghubungi server API (" + err.message + ")";
+      errElem.style.display = "block";
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Buka Akses";
+  }
+}
+
+function initDashboard() {
   loadAllData();
-  
-  // Auto refresh interval 5 detik
   const autoCheckbox = document.getElementById("auto-refresh-toggle");
   if (autoCheckbox) {
     autoCheckbox.addEventListener("change", (e) => {
@@ -31,9 +102,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     startAutoRefresh();
   }
-});
+}
 
-// --- Tabs Navigation ---
+// --- 1. Tabs Navigation ---
 function setupTabs() {
   document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -43,7 +114,6 @@ function setupTabs() {
       const target = document.getElementById(btn.dataset.tab);
       if (target) target.classList.add("active");
 
-      // Auto load tab data
       if (btn.dataset.tab === "tab-orders") loadOrders();
       if (btn.dataset.tab === "tab-apps") loadApps();
       if (btn.dataset.tab === "tab-dashboard") loadDashboardStats();
@@ -51,7 +121,7 @@ function setupTabs() {
   });
 }
 
-// --- API Helpers ---
+// --- 2. API Helper ---
 async function apiRequest(endpoint, method = "GET", body = null, useAdminKey = true) {
   const url = `${CONFIG.API_URL}${endpoint}`;
   const headers = { "Content-Type": "application/json" };
@@ -75,38 +145,60 @@ async function apiRequest(endpoint, method = "GET", body = null, useAdminKey = t
   }
 }
 
-// --- Data Loaders ---
+// --- 3. Data Loaders ---
 async function loadAllData() {
   await checkHealth();
   await loadDashboardStats();
   await loadOrders();
 }
 
-// 1. Healthcheck
+// Health & Status Banner
 async function checkHealth() {
-  const badge = document.getElementById("server-status-badge");
-  const tokenBadge = document.getElementById("token-status-display");
+  const navBadge = document.getElementById("server-status-badge");
+  const banner = document.getElementById("session-banner");
+  const bannerIcon = document.getElementById("session-banner-icon");
+  const bannerTitle = document.getElementById("session-banner-title");
+  const bannerDesc = document.getElementById("session-banner-desc");
+
   const res = await apiRequest("/api/health", "GET", null, false);
 
   if (res.ok && res.data.success) {
     const health = res.data.data;
-    if (badge) {
-      badge.innerHTML = `<span class="status-dot ${health.token_valid ? 'online' : 'degraded'}"></span> ${health.token_valid ? 'Online' : 'Token Expired'}`;
+    const isOnline = health.token_valid;
+
+    // Navbar Badge
+    if (navBadge) {
+      navBadge.innerHTML = `<span class="status-dot ${isOnline ? 'online' : 'degraded'}"></span> ${isOnline ? 'Sesi Aktif' : 'Token Expired'}`;
     }
-    if (tokenBadge) {
-      if (health.token_valid) {
-        tokenBadge.innerHTML = `<span class="badge badge-paid">Aktif</span> (${health.token_age_hours ? health.token_age_hours.toFixed(1) + ' jam' : 'OK'})`;
+
+    // Prominent Alert Banner
+    if (banner) {
+      if (isOnline) {
+        banner.className = "health-banner connected";
+        if (bannerIcon) bannerIcon.innerText = "🟢";
+        if (bannerTitle) bannerTitle.innerText = "Sesi ShopeePay Terhubung (Login Aktif)";
+        const age = health.token_age_hours ? health.token_age_hours.toFixed(1) + " jam" : "Baru saja";
+        const pollTime = health.last_poll_at ? new Date(health.last_poll_at).toLocaleTimeString("id-ID") : "Aktif";
+        if (bannerDesc) bannerDesc.innerText = `Umur Sesi: ${age} | Sinkronisasi mutasi terakhir: ${pollTime} | Order Pending: ${health.pending_orders}`;
       } else {
-        tokenBadge.innerHTML = `<span class="badge badge-cancelled">Kadaluwarsa</span>`;
+        banner.className = "health-banner disconnected";
+        if (bannerIcon) bannerIcon.innerText = "🔴";
+        if (bannerTitle) bannerTitle.innerText = "Sesi ShopeePay Terputus / Perlu Login Ulang!";
+        if (bannerDesc) bannerDesc.innerText = health.token_error || "Token ShopeePay kadaluwarsa. Klik Auto-Login Playwright atau tempel token baru.";
       }
     }
   } else {
-    if (badge) badge.innerHTML = `<span class="status-dot offline"></span> Offline`;
-    if (tokenBadge) tokenBadge.innerHTML = `<span class="badge badge-cancelled">Server Disconnected</span>`;
+    if (navBadge) navBadge.innerHTML = `<span class="status-dot offline"></span> Server Offline`;
+    if (banner) {
+      banner.className = "health-banner warning";
+      if (bannerIcon) bannerIcon.innerText = "⚠️";
+      if (bannerTitle) bannerTitle.innerText = "Tidak Dapat Menghubungi Server Backend";
+      if (bannerDesc) bannerDesc.innerText = "Pastikan server paymentg.exe aktif di port 3200.";
+    }
   }
 }
 
-// 2. Stats
+// Stats
 async function loadDashboardStats() {
   const res = await apiRequest("/api/stats", "GET", null, true);
   if (res.ok && res.data.success) {
@@ -118,14 +210,14 @@ async function loadDashboardStats() {
   }
 }
 
-// 3. Orders List
+// Orders
 async function loadOrders() {
   const tbody = document.getElementById("orders-tbody");
   if (!tbody) return;
 
   const res = await apiRequest("/api/orders?limit=100", "GET", null, true);
   if (!res.ok || !res.data.success) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger);">Gagal memuat data. Periksa X-Admin-Key & koneksi server.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger);">Gagal memuat data. Periksa X-Admin-Key & koneksi server.</td></tr>`;
     return;
   }
 
@@ -148,7 +240,7 @@ function renderOrdersTable() {
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Tidak ada transaksi yang cocok.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">Tidak ada transaksi yang cocok.</td></tr>`;
     return;
   }
 
@@ -158,26 +250,26 @@ function renderOrdersTable() {
     else if (o.status === "EXPIRED") badgeClass = "badge-expired";
     else if (o.status === "CANCELLED") badgeClass = "badge-cancelled";
 
-    const dateFormatted = o.created_at ? new Date(o.created_at).toLocaleString("id-ID") : "-";
+    const dateFormatted = o.created_at ? new Date(o.created_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" }) : "-";
 
     return `
       <tr>
         <td>
-          <div style="font-weight: 600;">${o.id}</div>
-          <div style="font-size: 11.5px; color: var(--text-muted);">${o.reference_id || '-'}</div>
+          <div style="font-weight: 700; color: var(--text-main);">${o.id}</div>
+          <div style="font-size: 11px; color: var(--text-muted);">${o.reference_id || '-'}</div>
         </td>
         <td>Rp ${Number(o.original_amount).toLocaleString("id-ID")}</td>
-        <td><span style="color: var(--primary); font-weight: 600;">+${o.unique_code}</span></td>
-        <td><b style="font-size: 14.5px;">Rp ${Number(o.total_amount).toLocaleString("id-ID")}</b></td>
+        <td><span style="color: var(--primary); font-weight: 700;">+${o.unique_code}</span></td>
+        <td><b style="font-size: 14px;">Rp ${Number(o.total_amount).toLocaleString("id-ID")}</b></td>
         <td><span class="badge ${badgeClass}">${o.status}</span></td>
-        <td><code style="font-size: 11.5px;">${o.shopee_tx_id || '-'}</code></td>
-        <td style="font-size: 12px; color: var(--text-muted);">${dateFormatted}</td>
+        <td><code style="font-size: 11px;">${o.shopee_tx_id || '-'}</code></td>
+        <td style="font-size: 11.5px; color: var(--text-muted);">${dateFormatted}</td>
         <td>
-          <div style="display: flex; gap: 6px;">
+          <div style="display: flex; gap: 4px;">
             ${o.status === 'PENDING' ? `
               <button class="btn btn-secondary btn-sm" onclick="showQRModal('${o.id}', ${o.total_amount})">QR</button>
               <button class="btn btn-primary btn-sm" onclick="forceCheckOrder('${o.id}')">Cek</button>
-              <button class="btn btn-secondary btn-sm" style="color: var(--danger);" onclick="cancelOrder('${o.id}')">Batal</button>
+              <button class="btn btn-secondary btn-sm" style="color: var(--danger);" onclick="cancelOrder('${o.id}')">✕</button>
             ` : `
               <button class="btn btn-secondary btn-sm" onclick="showQRModal('${o.id}', ${o.total_amount})">Detail</button>
             `}
@@ -205,7 +297,7 @@ async function submitCreateOrder(event) {
     reference_id: refId,
     expiry_minutes: expiry,
     metadata: metadata
-  }, false); // use client API key
+  }, false);
 
   btn.disabled = false;
   btn.innerText = "Generate QRIS Tagihan";
@@ -227,7 +319,7 @@ function displayGeneratedQR(order) {
   document.getElementById("qr-res-unique").innerText = order.unique_code;
   document.getElementById("qr-res-id").innerText = order.order_id;
   
-  // Public QR URL (bisa langsung dimuat tanpa auth header)
+  // Public QR URL
   const qrImgUrl = `${CONFIG.API_URL}${order.qr_url}`;
   document.getElementById("qr-res-img").src = qrImgUrl;
 
@@ -235,7 +327,7 @@ function displayGeneratedQR(order) {
   statusBadge.className = "badge badge-pending";
   statusBadge.innerText = "MENUNGGU PEMBAYARAN...";
 
-  // Realtime Polling for this created QR
+  // Realtime Polling
   if (qrCheckTimer) clearInterval(qrCheckTimer);
   qrCheckTimer = setInterval(async () => {
     if (!currentCreatedOrderId) return;
@@ -300,7 +392,7 @@ async function loadApps() {
     <tr>
       <td><b>${a.name}</b></td>
       <td><code>${a.api_key}</code></td>
-      <td style="font-size: 12px;">${a.webhook_url}</td>
+      <td style="font-size: 11.5px;">${a.webhook_url}</td>
       <td><span class="badge ${a.is_active ? 'badge-paid' : 'badge-expired'}">${a.is_active ? 'Aktif' : 'Non-aktif'}</span></td>
       <td>
         <button class="btn btn-secondary btn-sm" style="color: var(--danger);" onclick="deleteApp('${a.id}')">Hapus</button>
@@ -318,7 +410,7 @@ async function submitCreateApp(event) {
   const res = await apiRequest("/api/apps", "POST", { name, webhook_url: webhook }, true);
   if (res.ok && res.data.success) {
     const created = res.data.data;
-    alert(`App berhasil dibuat!\n\nAPI Key: ${created.api_key}\nWebhook Secret: ${created.webhook_secret}\n\nHarap simpan API Key ini!`);
+    alert(`App berhasil dibuat!\n\nAPI Key: ${created.api_key}\nWebhook Secret: ${created.webhook_secret}\n\nHarap simpan kredensial ini!`);
     document.getElementById("app-name").value = "";
     document.getElementById("app-webhook").value = "";
     loadApps();
@@ -342,13 +434,13 @@ async function triggerPlaywrightRefresh() {
   const btn = document.getElementById("btn-playwright");
   if (btn) {
     btn.disabled = true;
-    btn.innerText = "Sedang Membuka Browser...";
+    btn.innerText = "Membuka Browser...";
   }
 
   const res = await apiRequest("/api/token/refresh", "POST", {}, true);
   if (btn) {
     btn.disabled = false;
-    btn.innerText = "🤖 Auto-Refresh via Playwright";
+    btn.innerText = "🤖 Auto-Login Playwright";
   }
 
   if (res.ok && res.data.success) {
@@ -372,7 +464,7 @@ async function manualUpdateToken() {
   }
 }
 
-// --- Auto Refresh Control ---
+// Auto Refresh Control
 function startAutoRefresh() {
   if (autoRefreshTimer) clearInterval(autoRefreshTimer);
   autoRefreshTimer = setInterval(() => {
@@ -385,7 +477,7 @@ function stopAutoRefresh() {
   autoRefreshTimer = null;
 }
 
-// --- Settings Modal ---
+// Settings Modal
 function setupSettingsModal() {
   const modal = document.getElementById("settings-modal");
   const openBtn = document.getElementById("btn-open-settings");

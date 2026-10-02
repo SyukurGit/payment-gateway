@@ -35,6 +35,25 @@ func NewPoller(db *database.DB, shopeeClient *ShopeeClient, matcher *Matcher, in
 }
 
 func (p *Poller) Start(ctx context.Context) {
+	// Test token once on startup so healthcheck status is accurate immediately
+	initialToken, _ := p.db.GetConfig("shopee_token")
+	if initialToken != "" {
+		_, err := p.shopeeClient.FetchTransactions(initialToken)
+		p.mu.Lock()
+		if err == nil {
+			p.tokenValid = true
+			p.lastPollAt = time.Now()
+			p.lastPollOK = true
+			log.Println("[Poller] Initial token check OK (ShopeePay login aktif)")
+		} else {
+			p.tokenValid = false
+			p.tokenError = err.Error()
+			log.Printf("[Poller] Initial token check failed: %v", err)
+			p.triggerTokenRefresh()
+		}
+		p.mu.Unlock()
+	}
+
 	ticker := time.NewTicker(p.interval)
 	defer ticker.Stop()
 
