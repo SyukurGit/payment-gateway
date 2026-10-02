@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PaymentG — Sandbox Mode & Simulator</title>
+  <link rel="stylesheet" href="/dashboard/style.css">
+  <style>
+    :root {
+      --sandbox-accent: #f59e0b;
+      --sandbox-bg: rgba(245, 158, 11, 0.08);
+      --sandbox-border: rgba(245, 158, 11, 0.25);
+    }
+    .sandbox-banner {
+      background: var(--sandbox-bg);
+      border: 1px solid var(--sandbox-border);
+      padding: 16px 20px;
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .badge-sandbox-mode {
+      background: #f59e0b;
+      color: #000;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+    .btn-pay-simulator {
+      background: #10b981 !important;
+      color: #fff !important;
+      font-weight: 700 !important;
+      border: none !important;
+      box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+      cursor: pointer;
+    }
+    .btn-pay-simulator:hover {
+      background: #059669 !important;
+    }
+    .webhook-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PIN Lock Screen -->
+  <div id="pin-lockscreen" class="lockscreen-overlay">
+    <div class="lockscreen-card">
+      <div class="lockscreen-icon">🧪</div>
+      <h2 class="lockscreen-title">PaymentG Sandbox</h2>
+      <p class="lockscreen-subtitle">Masukkan PIN admin untuk membuka simulator pengujian.</p>
+      
+      <form id="pin-form" onsubmit="submitPIN(event)">
+        <div class="pin-input-group">
+          <input type="password" id="pin-field" class="pin-input" maxlength="8" placeholder="••••" autofocus required inputmode="numeric">
+        </div>
+        <button type="submit" id="btn-unlock-pin" class="pin-btn">Buka Simulator</button>
+        <div id="pin-error-msg" class="pin-error">PIN akses salah!</div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Top Navbar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="/sandbox/" class="brand">
+        <span>PaymentG</span>
+        <span class="badge-sandbox-mode">SANDBOX SIMULATOR</span>
+      </a>
+
+      <div class="nav-status">
+        <a href="/dashboard/" class="btn btn-secondary btn-sm" style="text-decoration: none; font-weight: 700;">
+          ⬅️ Mode Live (Uang Asli)
+        </a>
+        <button id="btn-open-settings" class="nav-settings-btn" title="Pengaturan API Sandbox">
+          ⚙️ <span class="hide-mobile">Setting</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="tabs-bar">
+    <div class="tabs-container">
+      <button class="tab-btn active" data-tab="tab-sandbox-orders">📜 Mutasi Transaksi Sandbox</button>
+      <button class="tab-btn" data-tab="tab-sandbox-stats">📊 Ringkasan Sandbox</button>
+      <button class="tab-btn" data-tab="tab-sandbox-gen">⚡ Buat Tagihan Sandbox</button>
+      <button class="tab-btn" data-tab="tab-sandbox-apps">🔑 Kelola App Sandbox</button>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Sandbox Notice Banner -->
+    <div class="sandbox-banner">
+      <div>
+        <div style="font-weight: 700; color: var(--sandbox-accent); font-size: 15px; margin-bottom: 4px;">
+          🧪 Mode Sandbox Terisolasi Penuh
+        </div>
+        <div style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">
+          Transaksi di halaman ini disimpan di database terpisah (<code>data/sandbox/payment.db</code>). Tidak menggunakan uang asli, dan tidak mempengaruhi omset di Dashboard utama. Anda bisa melunaskan pesanan dengan 1 klik tombol <b>[💳 Bayar Sekarang]</b> untuk mengetes alur checkout web toko Anda.
+        </div>
+      </div>
+      <div>
+        <button class="btn btn-secondary btn-sm" onclick="loadAllSandboxData()">🔄 Muat Ulang</button>
+      </div>
+    </div>
+
+    <!-- Tab 1: Mutasi Transaksi Sandbox (Main Focus) -->
+    <section id="tab-sandbox-orders" class="tab-content active">
+      <div class="card">
+        <div class="table-header">
+          <div class="table-controls-left">
+            <input type="text" id="search-order" class="search-input" placeholder="Cari Order / Invoice / Sandbox Tx ID..." oninput="renderOrdersTable()">
+            <select id="filter-status" class="filter-select" onchange="renderOrdersTable()">
+              <option value="ALL">Semua Status</option>
+              <option value="PENDING">Hanya PENDING (Siap Di-Simulasikan)</option>
+              <option value="PAID">Hanya PAID (Lunas)</option>
+              <option value="CANCELLED">Hanya CANCELLED</option>
+            </select>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
+            <label style="font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+              <input type="checkbox" id="auto-refresh-toggle" checked> Auto Refresh (4s)
+            </label>
+            <button class="btn btn-secondary btn-sm" onclick="loadSandboxOrders()">Refresh</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Order / Invoice</th>
+                <th>Nominal Asli</th>
+                <th>Kode Unik</th>
+                <th>Total Bayar</th>
+                <th>Status</th>
+                <th>Simulasi Tx ID</th>
+                <th>Dibuat</th>
+                <th>Aksi Simulator</th>
+              </tr>
+            </thead>
+            <tbody id="sandbox-orders-tbody">
+              <tr>
+                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">Memuat data sandbox...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Live Webhook Delivery Inspector -->
+      <div class="card" id="webhook-inspector-box" style="display: none; margin-top: 20px; border-left: 4px solid var(--primary);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-size: 15px; margin: 0;">📡 Hasil Eksekusi Webhook Terakhir ke Toko</h3>
+          <span id="webhook-status-badge" class="badge badge-paid">HTTP 200 OK</span>
+        </div>
+        <div id="webhook-details" style="font-size: 13px; color: var(--text-muted); margin-top: 8px;"></div>
+      </div>
+    </section>
+
+    <!-- Tab 2: Ringkasan Sandbox -->
+    <section id="tab-sandbox-stats" class="tab-content">
+      <div class="stats-grid">
+        <div class="card">
+          <div class="stat-label">Total Omset Simulasi</div>
+          <div class="stat-value" id="stat-revenue" style="color: var(--sandbox-accent);">Rp 0</div>
+          <div class="stat-desc">Akumulasi uang testing (pura-pura)</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">Order Sukses Diuji</div>
+          <div class="stat-value" id="stat-paid-count" style="color: var(--primary);">0</div>
+          <div class="stat-desc">Sudah dilunaskan via simulator</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">Order Pending Sandbox</div>
+          <div class="stat-value" id="stat-pending-count" style="color: var(--warning);">0</div>
+          <div class="stat-desc">Menunggu tombol bayar diklik</div>
+        </div>
+        <div class="card">
+          <div class="stat-label">Total Percobaan Test</div>
+          <div class="stat-value" id="stat-total-orders">0</div>
+          <div class="stat-desc">Jumlah order yang dibuat di sandbox</div>
+        </div>
+      </div>
+
+      <div class="card" style="font-size: 13px; line-height: 1.6; color: var(--text-muted);">
+        <b>💡 Cara Menggunakan Sandbox di Web Toko Anda:</b>
+        <ol style="padding-left: 20px; margin-top: 8px;">
+          <li>Buka tab <b>🔑 Kelola App Sandbox</b> dan daftarkan web toko testing Anda.</li>
+          <li>Salin <code>API Key (ak_sbx_...)</code> dan <code>Webhook Secret</code> ke file <code>.env</code> toko Anda.</li>
+          <li>Set base URL di web toko ke <code>https://paymentg.syukurapi.online/api/sandbox</code>.</li>
+          <li>Lakukan checkout di web toko Anda. Tagihan akan otomatis masuk ke tabel di atas.</li>
+          <li>Klik tombol <b>[💳 Bayar Sekarang]</b> pada invoice tersebut. Pembayaran seketika lunas dan webhook otomatis terkirim ke web toko Anda!</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Tab 3: Buat Tagihan Sandbox Manual -->
+    <section id="tab-sandbox-gen" class="tab-content">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <div class="card">
+          <h2 style="font-size: 17px; margin-bottom: 4px;">Buat Tagihan QRIS Sandbox</h2>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px;">
+            Simulasikan tagihan pembayaran untuk uji coba.
+          </p>
+
+          <form onsubmit="submitCreateSandboxOrder(event)">
+            <div class="form-group">
+              <label class="form-label">Nominal Pembayaran (Rp) *</label>
+              <input type="number" id="gen-amount" class="form-input" value="25000" step="1000" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">No. Invoice / Reference ID</label>
+              <input type="text" id="gen-ref-id" class="form-input" placeholder="INV-TEST-001">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Masa Berlaku (Menit)</label>
+              <input type="number" id="gen-expiry" class="form-input" value="15" min="1" max="120">
+            </div>
+            <button type="submit" id="btn-generate-order" class="btn btn-primary" style="width: 100%; justify-content: center;">
+              Generate QRIS Sandbox
+            </button>
+          </form>
+        </div>
+
+        <div class="card" id="qr-result-box" style="display: none;">
+          <h3 style="font-size: 16px; margin-bottom: 4px;">QRIS Sandbox Dibuat</h3>
+          <div class="qr-preview-box" style="margin-top: 12px;">
+            <img id="qr-res-img" class="qr-image" src="" alt="QRIS Sandbox">
+            <div id="qr-res-total" class="qr-amount-large" style="margin-top: 8px;">Rp 0</div>
+            <div style="margin-top: 12px;">
+              <button id="btn-quick-pay-now" class="btn btn-pay-simulator" style="width: 100%; justify-content: center;">
+                💳 Simulasikan Bayar Sekarang (Lunas)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 4: Kelola Web App Sandbox -->
+    <section id="tab-sandbox-apps" class="tab-content">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+        <div class="card">
+          <h2 style="font-size: 17px; margin-bottom: 4px;">Daftarkan Web Toko (Mode Testing)</h2>
+          <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px;">
+            Dapatkan API Key khusus sandbox (diawali <code>ak_sbx_</code>).
+          </p>
+
+          <form onsubmit="submitCreateSandboxApp(event)">
+            <div class="form-group">
+              <label class="form-label">Nama Web Toko / Layanan *</label>
+              <input type="text" id="app-name" class="form-input" placeholder="Toko Dev Localhost" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Webhook URL (Penerima Notifikasi) *</label>
+              <input type="url" id="app-webhook" class="form-input" placeholder="https://webhook.site/xxx atau http://localhost:8000/api/webhook" required>
+              <div class="form-help">Bisa gunakan URL localhost toko Anda atau webhook.site</div>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">
+              Buat Kredensial Sandbox
+            </button>
+          </form>
+        </div>
+
+        <div class="card" style="grid-column: span 2;">
+          <h2 style="font-size: 17px; margin-bottom: 16px;">Daftar App Sandbox Aktif</h2>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nama Layanan</th>
+                  <th>API Key Sandbox</th>
+                  <th>Webhook URL</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="sandbox-apps-tbody">
+                <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Memuat daftar app...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Pengaturan API Sandbox</h3>
+        <button class="modal-close" onclick="closeModal('settings-modal')">&times;</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">PaymentG Backend URL</label>
+        <input type="text" id="setting-api-url" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Admin Secret Key (X-Admin-Key)</label>
+        <input type="text" id="setting-admin-key" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Active Sandbox App API Key (X-API-Key)</label>
+        <input type="text" id="setting-api-key" class="form-input" placeholder="ak_sbx_...">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button class="btn btn-secondary" onclick="closeModal('settings-modal')">Batal</button>
+        <button class="btn btn-primary" id="btn-save-settings">Simpan Pengaturan</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/dashboard/sandbox.js"></script>
+</body>
+</html>

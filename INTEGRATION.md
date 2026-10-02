@@ -20,14 +20,21 @@ Panduan ini dirancang khusus sebagai **instruksi lengkap dan presisi untuk AI Co
 Tambahkan variabel lingkungan berikut pada file `.env` di website toko Anda:
 
 ```env
-# URL server backend PaymentG (Local: http://localhost:3200 | Production VPS: https://paymentg.syukurapi.online)
-PAYMENTG_BASE_URL=https://paymentg.syukurapi.online
+# ==============================================================================
+# PILIH SALAH SATU MODE: TESTING (SANDBOX) vs PRODUCTION (LIVE)
+# ==============================================================================
 
-# X-API-Key milik toko Anda (didapatkan dari Dashboard PaymentG)
-PAYMENTG_API_KEY=ak_xxxxxxxxxxxxxxxxxxxxxxxx
+# 🧪 OPSI A: MODE TESTING (SANDBOX SIMULATOR)
+# Gunakan ini saat develop toko baru. Tidak ada uang asli, bisa klik bayar lewat web!
+PAYMENTG_BASE_URL=https://paymentg.syukurapi.online/api/sandbox
+PAYMENTG_API_KEY=ak_sbx_xxxxxxxxxxxxxxxxxxxxxxxx
+PAYMENTG_WEBHOOK_SECRET=sbx_sec_xxxxxxxxxxxxxxxxxxxxxxxx
 
-# Secret key untuk memvalidasi keaslian Webhook
-PAYMENTG_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# 🚀 OPSI B: MODE LIVE (UANG ASLI)
+# Cukup tukar nilai ini saat toko Anda sudah siap jualan uang asli (kode toko 100% sama!):
+# PAYMENTG_BASE_URL=https://paymentg.syukurapi.online/api
+# PAYMENTG_API_KEY=ak_xxxxxxxxxxxxxxxxxxxxxxxx
+# PAYMENTG_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ---
@@ -296,12 +303,32 @@ Saat pembeli berada di halaman pembayaran:
 
 ---
 
+## 🧪 6. Cara Menguji Pembayaran Tanpa Uang Asli (Mode Sandbox)
+
+Saat Anda sedang mengembangkan website toko, Anda tidak perlu melakukan transfer uang asli berulang kali! Cukup gunakan fitur **Sandbox Simulator**:
+
+1. **Buka Dashboard Sandbox di Browser:**
+   Akses `https://paymentg.syukurapi.online/sandbox/` (atau `http://localhost:3200/sandbox/`). Masukkan PIN `2207`.
+2. **Daftarkan App Testing:**
+   Buka tab **"🔑 Kelola App Sandbox"**, daftarkan toko testing Anda dan webhook URL-nya (misal `http://localhost:8000/api/webhook` atau `https://webhook.site/...`). Salin `API Key (ak_sbx_...)` dan `Webhook Secret` ke `.env` web toko Anda.
+3. **Lakukan Checkout di Web Toko:**
+   Web toko Anda akan memanggil `POST {PAYMENTG_BASE_URL}/orders` (ingat: `PAYMENTG_BASE_URL` diisi dengan akhiran `/api/sandbox`).
+4. **Simulasikan Pembayaran Lunas dengan 1 Klik:**
+   Buka kembali halaman `/sandbox/` di tab **"📜 Mutasi Transaksi Sandbox"**. Tagihan Anda akan muncul dengan status `PENDING`.
+   Klik tombol hijau: **`[💳 Bayar Sekarang]`**!
+5. **Lihat Hasilnya:**
+   * PaymentG akan seketika menembakkan Webhook nyata ber-signature HMAC-SHA256 ke web toko Anda.
+   * Webhook inspector di halaman `/sandbox/` akan memperlihatkan status respons dari server toko Anda (misal HTTP 200 OK).
+   * Halaman checkout pembeli di web toko Anda otomatis mendeteksi lunas dan melakukan redirect sukses!
+
+---
+
 ## 🚀 Checklist untuk AI Agent
 
 Saat mengintegrasikan ke web toko baru, pastikan hal berikut tercentang:
 - [ ] File `.env` sudah memuat `PAYMENTG_BASE_URL`, `PAYMENTG_API_KEY`, dan `PAYMENTG_WEBHOOK_SECRET`.
-- [ ] Endpoint pembuatan order memanggil `POST {PAYMENTG_BASE_URL}/api/orders` dan menangani error jika server pembayaran offline.
+- [ ] Endpoint pembuatan order memanggil `POST {PAYMENTG_BASE_URL}/orders` dan menangani error jika server pembayaran offline.
 - [ ] Halaman checkout menampilkan `total_amount` (nominal akhir yang sudah ada kode uniknya), bukan harga aslinya.
 - [ ] Endpoint Webhook memvalidasi header `X-Webhook-Signature` dengan `hash_equals` / timing-safe crypto.
 - [ ] Webhook membalas HTTP `200 OK` agar server PaymentG tahu notifikasi sudah sampai.
-- [ ] URL Webhook toko Anda didaftarkan di Dashboard PaymentG (Tab *"Kelola Web App"*).
+- [ ] URL Webhook toko Anda didaftarkan di Dashboard PaymentG (Tab *"Kelola Web App"* untuk Live, atau Tab *"Kelola App Sandbox"* di `/sandbox` untuk Testing).

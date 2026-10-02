@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -28,12 +29,22 @@ func main() {
 	log.Printf("[PaymentG] Starting on port %d", cfg.Port)
 	log.Printf("[PaymentG] Admin key: %s...", cfg.AdminKey[:8])
 
-	// 2. Init database
+	// 2. Init database (Production)
 	db, err := database.New(cfg.DataDir)
 	if err != nil {
 		log.Fatalf("[PaymentG] Database init failed: %v", err)
 	}
 	defer db.Close()
+
+	// 2b. Init database (Isolated Sandbox)
+	sandboxDataDir := filepath.Join(cfg.DataDir, "sandbox")
+	sandboxDB, err := database.New(sandboxDataDir)
+	if err != nil {
+		log.Printf("[PaymentG] WARNING: Sandbox DB init failed: %v", err)
+	} else {
+		defer sandboxDB.Close()
+		log.Println("[PaymentG] Sandbox Database initialized at", sandboxDataDir)
+	}
 
 	// 3. Store initial token in DB if provided via env
 	if cfg.ShopeeToken != "" {
@@ -80,6 +91,12 @@ func main() {
 	adminHandler := handler.NewAdminHandler(db, cfg)
 	healthHandler := handler.NewHealthHandler(db, poller)
 
+	var sandboxHandler *handler.SandboxHandler
+	if sandboxDB != nil {
+		sandboxWebhookService := service.NewWebhookService(sandboxDB)
+		sandboxHandler = handler.NewSandboxHandler(sandboxDB, qrisService, cfg, sandboxWebhookService, sandboxDataDir)
+	}
+
 	// 8. Start background goroutines
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -104,6 +121,15 @@ func main() {
 		}
 		r.GET("/", rootRedirect)
 		r.HEAD("/", rootRedirect)
+
+		// Dedicated sandbox page route
+		sandboxPage := func(c *gin.Context) {
+			c.File("./dashboard/sandbox.html")
+		}
+		r.GET("/sandbox", sandboxPage)
+		r.HEAD("/sandbox", sandboxPage)
+		r.GET("/sandbox/", sandboxPage)
+		r.HEAD("/sandbox/", sandboxPage)
 	}
 
 	// Public routes
@@ -134,6 +160,33 @@ func main() {
 		adminAPI.POST("/apps", adminHandler.CreateApp)
 		adminAPI.GET("/apps", adminHandler.ListApps)
 		adminAPI.DELETE("/apps/:id", adminHandler.DeleteApp)
+	}
+
+	// 9b. Sandbox API routes (Isolated testing environment)
+	if sandboxHandler != nil && sandboxDB != nil {
+		r.GET("/api/sandbox/orders/:id/qr.png", sandboxHandler.GetQRImage)
+		r.HEAD("/api/sandbox/orders/:id/qr.png", sandboxHandler.GetQRImage)
+		r.POST("/api/sandbox/auth/pin", sandboxHandler.VerifyPIN)
+
+		sbxClient := r.Group("/api/sandbox")
+		sbxClient.Use(middleware.APIKeyAuth(sandboxDB))
+		{
+			sbxClient.POST("/orders", sandboxHandler.CreateOrder)
+			sbxClient.GET("/orders/:id", sandboxHandler.GetOrder)
+			sbxClient.POST("/orders/:id/check", sandboxHandler.CheckOrder)
+			sbxClient.POST("/orders/:id/cancel", sandboxHandler.CancelOrder)
+		}
+
+		sbxAdmin := r.Group("/api/sandbox")
+		sbxAdmin.Use(middleware.AdminAuth(cfg.AdminKey))
+		{
+			sbxAdmin.GET("/orders", sandboxHandler.ListOrders)
+			sbxAdmin.POST("/orders/:id/pay", sandboxHandler.SimulatePay)
+			sbxAdmin.GET("/stats", sandboxHandler.GetStats)
+			sbxAdmin.POST("/apps", sandboxHandler.CreateApp)
+			sbxAdmin.GET("/apps", sandboxHandler.ListApps)
+			sbxAdmin.DELETE("/apps/:id", sandboxHandler.DeleteApp)
+		}
 	}
 
 	// 10. Start HTTP server
