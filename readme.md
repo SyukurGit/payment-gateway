@@ -185,7 +185,7 @@ Digunakan saat session browser ShopeePay Anda habis tanpa perlu restart server.
     "total_amount": 50362,
     "status": "PENDING",
     "qr_url": "/api/orders/ord_oVVqMw7cBx/qr.png",
-    "expires_at": "2026-10-02T16:30:00+07:00",
+    "expires_at": "2026-10-02T16:30:00Z",
     "expires_in_seconds": 900
   }
 }
@@ -193,9 +193,9 @@ Digunakan saat session browser ShopeePay Anda habis tanpa perlu restart server.
 
 #### 2. Dapatkan Gambar QR Code PNG
 * **URL:** `GET /api/orders/:id/qr.png`
-* **Header:** `X-API-Key: ak_xxxxxxxxxxxx`
+* **Header:** Publik (Bebas Header / Tanpa API Key, browser bisa langsung memuat)
 * **Content-Type:** `image/png`
-* **Catatan:** Bisa langsung disematkan pada tag HTML `<img src="http://localhost:3200/api/orders/ord_xxx/qr.png" />`.
+* **Catatan:** Bisa langsung disematkan pada tag HTML `<img src="https://paymentg.syukurapi.online/api/orders/ord_xxx/qr.png" />`.
 
 #### 3. Cek Status Order
 * **URL:** `GET /api/orders/:id`
@@ -211,9 +211,9 @@ Digunakan saat session browser ShopeePay Anda habis tanpa perlu restart server.
     "unique_code": 362,
     "total_amount": 50362,
     "status": "PAID",
-    "paid_at": "2026-10-02T16:18:24+07:00",
+    "paid_at": "2026-10-02T16:18:24Z",
     "shopee_tx_id": "118902602337672307",
-    "created_at": "2026-10-02T16:15:00+07:00"
+    "created_at": "2026-10-02T16:15:00Z"
   }
 }
 ```

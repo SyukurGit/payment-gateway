@@ -72,7 +72,7 @@ Dipanggil oleh backend web toko Anda saat pembeli memilih metode bayar QRIS dan 
       "total_amount": 50237,
       "status": "PENDING",
       "qr_url": "/api/orders/ord_oVVqMw7cBx/qr.png",
-      "expires_at": "2026-10-02T16:30:00+07:00",
+      "expires_at": "2026-10-02T16:30:00Z",
       "expires_in_seconds": 900
     }
   }
@@ -91,7 +91,7 @@ URL publik untuk menampilkan gambar QR code langsung di HTML tanpa memerlukan he
 * **Content-Type:** `image/png`
 * **Contoh di HTML Frontend:**
   ```html
-  <img src="http://localhost:3200/api/orders/ord_oVVqMw7cBx/qr.png" alt="Scan QRIS" width="240" />
+  <img src="https://paymentg.syukurapi.online/api/orders/ord_oVVqMw7cBx/qr.png" alt="Scan QRIS" width="240" />
   ```
 
 ---
@@ -113,9 +113,9 @@ Dipanggil oleh frontend atau backend web toko untuk memeriksa apakah pesanan sud
       "unique_code": 237,
       "total_amount": 50237,
       "status": "PAID",
-      "paid_at": "2026-10-02T16:18:24+07:00",
+      "paid_at": "2026-10-02T16:18:24Z",
       "shopee_tx_id": "122722636469377153",
-      "created_at": "2026-10-02T16:15:00+07:00"
+      "created_at": "2026-10-02T16:15:00Z"
     }
   }
   ```
@@ -127,7 +127,17 @@ Dipanggil oleh frontend atau backend web toko untuk memeriksa apakah pesanan sud
 
 ---
 
-### D. Batalkan Pesanan (`POST /api/orders/:id/cancel`)
+### D. Trigger Verifikasi Instan / Tombol "Saya Sudah Bayar" (`POST /api/orders/:id/check`)
+Jika pembeli menekan tombol *"Saya Sudah Bayar"* di web Anda, panggil endpoint ini untuk langsung memeriksa mutasi ShopeePay secara instan tanpa menunggu siklus polling otomatis.
+
+* **URL:** `{PAYMENTG_BASE_URL}/api/orders/{order_id}/check`
+* **Method:** `POST`
+* **Headers:** `X-API-Key: {PAYMENTG_API_KEY}`
+* **Response (HTTP 200 OK):** Mengembalikan objek order terbaru (status `PAID` atau tetap `PENDING` jika belum terdeteksi).
+
+---
+
+### E. Batalkan Pesanan (`POST /api/orders/:id/cancel`)
 Jika pembeli menekan tombol *"Ganti Metode Pembayaran"* atau *"Batal"*. Nominal unik akan langsung dilepas agar bisa dipakai transaksi lain.
 
 * **URL:** `{PAYMENTG_BASE_URL}/api/orders/{order_id}/cancel`
@@ -156,7 +166,7 @@ X-Webhook-Signature: sha256=<hex_hmac_sha256>
   "original_amount": 50000,
   "unique_code": 237,
   "total_amount": 50237,
-  "paid_at": "2026-10-02T16:18:24+07:00",
+  "paid_at": "2026-10-02T16:18:24Z",
   "shopee_tx_id": "122722636469377153"
 }
 ```
