@@ -8,17 +8,13 @@ const DEFAULT_BACKEND = window.location.protocol.startsWith("http") ? window.loc
 
 const CONFIG = {
   API_URL: localStorage.getItem("paymentg_api_url") || DEFAULT_BACKEND,
-  ADMIN_KEY: localStorage.getItem("paymentg_admin_key") || "adm_secret_paymentg_2026",
-  API_KEY: localStorage.getItem("paymentg_api_key") || ""
+  ADMIN_KEY: localStorage.getItem("paymentg_admin_key") || "adm_secret_paymentg_2026"
 };
 
 // Global State
 let allOrders = [];
 let allApps = [];
 let autoRefreshTimer = null;
-let currentCreatedOrderId = null;
-let currentCreatedOrderData = null;
-let qrCheckTimer = null;
 
 // Initialize on Load
 document.addEventListener("DOMContentLoaded", () => {
@@ -80,7 +76,6 @@ async function submitPIN(e) {
       pinInput.focus();
     }
   } catch (err) {
-    // Fallback verification if backend endpoint fails
     if (pin === "2207") {
       sessionStorage.setItem("paymentg_unlocked", "true");
       document.getElementById("pin-lockscreen").style.display = "none";
@@ -124,7 +119,6 @@ function setupTabs() {
       if (btn.dataset.tab === "tab-orders") loadOrders();
       if (btn.dataset.tab === "tab-apps") loadApps();
       if (btn.dataset.tab === "tab-dashboard") loadDashboardStats();
-      if (btn.dataset.tab === "tab-generator") refreshAppSelectors();
     });
   });
 }
@@ -132,15 +126,12 @@ function setupTabs() {
 // ==========================================
 // 2. HTTP API Client Helper
 // ==========================================
-async function apiRequest(endpoint, method = "GET", body = null, useAdminKey = true) {
+async function apiRequest(endpoint, method = "GET", body = null) {
   const url = `${CONFIG.API_URL}${endpoint}`;
-  const headers = { "Content-Type": "application/json" };
-  
-  if (useAdminKey && CONFIG.ADMIN_KEY) {
-    headers["X-Admin-Key"] = CONFIG.ADMIN_KEY;
-  } else if (!useAdminKey && CONFIG.API_KEY) {
-    headers["X-API-Key"] = CONFIG.API_KEY;
-  }
+  const headers = { 
+    "Content-Type": "application/json",
+    "X-Admin-Key": CONFIG.ADMIN_KEY
+  };
 
   const options = { method, headers };
   if (body) options.body = JSON.stringify(body);
@@ -171,37 +162,40 @@ async function checkHealth() {
   const bannerTitle = document.getElementById("session-banner-title");
   const bannerDesc = document.getElementById("session-banner-desc");
 
-  const res = await apiRequest("/api/health", "GET", null, false);
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/api/health`);
+    const data = await res.json();
 
-  if (res.ok && res.data.success) {
-    const health = res.data.data;
-    const isOnline = health.token_valid;
+    if (res.ok && data.success) {
+      const health = data.data;
+      const isOnline = health.token_valid;
 
-    // Navbar Pill
-    if (navBadge) {
-      navBadge.innerHTML = `
-        <span class="status-dot ${isOnline ? 'online' : 'degraded'}"></span>
-        <span class="status-text">${isOnline ? 'Gateway Aktif' : 'Token Expired'}</span>
-      `;
-    }
+      // Navbar Pill
+      if (navBadge) {
+        navBadge.innerHTML = `
+          <span class="status-dot ${isOnline ? 'online' : 'degraded'}"></span>
+          <span class="status-text">${isOnline ? 'Gateway Aktif' : 'Token Expired'}</span>
+        `;
+      }
 
-    // Health Session Banner
-    if (banner) {
-      if (isOnline) {
-        banner.className = "health-banner connected";
-        if (bannerIcon) bannerIcon.innerText = "🟢";
-        if (bannerTitle) bannerTitle.innerText = "Sesi ShopeePay Terhubung (Login Aktif)";
-        const age = health.token_age_hours ? health.token_age_hours.toFixed(1) + " jam lalu" : "Baru saja";
-        const pollTime = health.last_poll_at ? new Date(health.last_poll_at).toLocaleTimeString("id-ID") : "Aktif";
-        if (bannerDesc) bannerDesc.innerText = `Token update: ${age} • Sinkronisasi terakhir: ${pollTime} • Order Pending: ${health.pending_orders}`;
-      } else {
-        banner.className = "health-banner disconnected";
-        if (bannerIcon) bannerIcon.innerText = "🔴";
-        if (bannerTitle) bannerTitle.innerText = "Sesi ShopeePay Terputus / Perlu Login Ulang!";
-        if (bannerDesc) bannerDesc.innerText = health.token_error || "Sesi login ShopeePay telah kadaluwarsa. Klik 'Auto-Login Playwright' atau perbarui token.";
+      // Health Session Banner
+      if (banner) {
+        if (isOnline) {
+          banner.className = "health-banner connected";
+          if (bannerIcon) bannerIcon.innerText = "🟢";
+          if (bannerTitle) bannerTitle.innerText = "Sesi ShopeePay Terhubung (Login Aktif)";
+          const age = health.token_age_hours ? health.token_age_hours.toFixed(1) + " jam lalu" : "Baru saja";
+          const pollTime = health.last_poll_at ? new Date(health.last_poll_at).toLocaleTimeString("id-ID") : "Aktif";
+          if (bannerDesc) bannerDesc.innerText = `Token update: ${age} • Sinkronisasi terakhir: ${pollTime} • Order Pending: ${health.pending_orders}`;
+        } else {
+          banner.className = "health-banner disconnected";
+          if (bannerIcon) bannerIcon.innerText = "🔴";
+          if (bannerTitle) bannerTitle.innerText = "Sesi ShopeePay Terputus / Perlu Login Ulang!";
+          if (bannerDesc) bannerDesc.innerText = health.token_error || "Sesi login ShopeePay telah kadaluwarsa. Klik 'Auto-Login Playwright' atau perbarui token.";
+        }
       }
     }
-  } else {
+  } catch (err) {
     if (navBadge) {
       navBadge.innerHTML = `
         <span class="status-dot offline"></span>
@@ -212,13 +206,13 @@ async function checkHealth() {
       banner.className = "health-banner warning";
       if (bannerIcon) bannerIcon.innerText = "⚠️";
       if (bannerTitle) bannerTitle.innerText = "Tidak Dapat Menghubungi Server Backend";
-      if (bannerDesc) bannerDesc.innerText = "Pastikan executable backend PaymentG aktif di " + CONFIG.API_URL;
+      if (bannerDesc) bannerDesc.innerText = "Pastikan server PaymentG aktif di " + CONFIG.API_URL;
     }
   }
 }
 
 async function loadDashboardStats() {
-  const res = await apiRequest("/api/stats", "GET", null, true);
+  const res = await apiRequest("/api/stats", "GET");
   if (res.ok && res.data.success) {
     const s = res.data.data;
     document.getElementById("stat-revenue").innerText = "Rp " + Number(s.total_revenue || 0).toLocaleString("id-ID");
@@ -235,7 +229,7 @@ async function loadOrders() {
   const tbody = document.getElementById("orders-tbody");
   if (!tbody) return;
 
-  const res = await apiRequest("/api/orders?limit=100", "GET", null, true);
+  const res = await apiRequest("/api/orders?limit=100", "GET");
   if (!res.ok || !res.data.success) {
     tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat data mutasi. Periksa koneksi backend.</td></tr>`;
     return;
@@ -287,15 +281,9 @@ function renderOrdersTable() {
         <td><code class="font-mono" style="font-size: 11px; color: var(--text-muted);">${o.shopee_tx_id || '-'}</code></td>
         <td style="font-size: 11.5px; color: var(--text-muted);">${dateFormatted}</td>
         <td style="text-align: right;">
-          <div style="display: inline-flex; gap: 4px; justify-content: flex-end;">
-            ${o.status === 'PENDING' ? `
-              <button class="btn btn-secondary btn-sm" onclick="showQRModal('${o.id}', ${o.total_amount}, '${o.status}')">QR</button>
-              <button class="btn btn-primary btn-sm" onclick="forceCheckOrder('${o.id}')">Cek</button>
-              <button class="btn btn-secondary btn-sm" style="color: var(--danger);" title="Batalkan" onclick="cancelOrder('${o.id}')">✕</button>
-            ` : `
-              <button class="btn btn-secondary btn-sm" onclick="showQRModal('${o.id}', ${o.total_amount}, '${o.status}')">Detail</button>
-            `}
-          </div>
+          <button class="btn btn-secondary btn-sm" onclick="showQRModal('${o.id}', ${o.total_amount}, '${o.status}')">
+            Lihat QR
+          </button>
         </td>
       </tr>
     `;
@@ -303,217 +291,50 @@ function renderOrdersTable() {
 }
 
 // ==========================================
-// 5. Buat QRIS Tagihan (Generator)
-// ==========================================
-function refreshAppSelectors() {
-  const genSelect = document.getElementById("gen-app-select");
-  const settingSelect = document.getElementById("setting-app-picker");
-  
-  if (!genSelect) return;
-
-  if (allApps.length === 0) {
-    genSelect.innerHTML = `<option value="">⚠️ Belum ada web toko. Buat dulu di tab 'Kelola Toko'!</option>`;
-    if (settingSelect) settingSelect.innerHTML = `<option value="">⚠️ Belum ada web toko.</option>`;
-    return;
-  }
-
-  let optionsHtml = allApps.map(a => `<option value="${a.api_key}">${a.name} (${a.api_key.substring(0, 10)}...)</option>`).join("");
-  genSelect.innerHTML = optionsHtml;
-  if (settingSelect) settingSelect.innerHTML = `<option value="">Pilih web toko...</option>` + optionsHtml;
-
-  // Auto pick first store if CONFIG.API_KEY is not set
-  if (!CONFIG.API_KEY && allApps.length > 0) {
-    CONFIG.API_KEY = allApps[0].api_key;
-    localStorage.setItem("paymentg_api_key", CONFIG.API_KEY);
-    genSelect.value = CONFIG.API_KEY;
-  } else {
-    genSelect.value = CONFIG.API_KEY;
-  }
-}
-
-function handleAppSelectChange() {
-  const select = document.getElementById("gen-app-select");
-  if (select && select.value) {
-    CONFIG.API_KEY = select.value;
-    localStorage.setItem("paymentg_api_key", select.value);
-    showToast("Menggunakan API Key: " + select.options[select.selectedIndex].text);
-  }
-}
-
-async function submitCreateOrder(event) {
-  event.preventDefault();
-
-  if (!CONFIG.API_KEY) {
-    alert("Silakan daftarkan toko terlebih dahulu di tab 'Kelola Toko & API' untuk mendapatkan API Key.");
-    return;
-  }
-
-  const btn = document.getElementById("btn-generate-order");
-  const amount = parseInt(document.getElementById("gen-amount").value);
-  const refId = document.getElementById("gen-ref-id").value.trim() || ("INV-" + Date.now());
-  const expiry = parseInt(document.getElementById("gen-expiry").value) || 15;
-  const metadata = document.getElementById("gen-metadata").value.trim();
-
-  btn.disabled = true;
-  btn.innerHTML = `<span>⏳</span> Membuat QRIS Dinamis...`;
-
-  const res = await apiRequest("/api/orders", "POST", {
-    amount: amount,
-    reference_id: refId,
-    expiry_minutes: expiry,
-    metadata: metadata
-  }, false);
-
-  btn.disabled = false;
-  btn.innerHTML = `<span>⚡</span> Generate QRIS Tagihan`;
-
-  if (res.ok && res.data.success) {
-    const order = res.data.data;
-    currentCreatedOrderId = order.order_id;
-    currentCreatedOrderData = order;
-    displayGeneratedQR(order);
-    loadAllData();
-  } else {
-    alert("Gagal membuat QRIS: " + (res.data ? res.data.error : res.error));
-  }
-}
-
-function displayGeneratedQR(order) {
-  const box = document.getElementById("qr-result-box");
-  box.style.display = "block";
-  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
-
-  document.getElementById("qr-res-total").innerText = "Rp " + Number(order.total_amount).toLocaleString("id-ID");
-  document.getElementById("qr-res-total-calc").innerText = "Rp " + Number(order.total_amount).toLocaleString("id-ID");
-  document.getElementById("qr-res-base").innerText = "Rp " + Number(order.original_amount).toLocaleString("id-ID");
-  document.getElementById("qr-res-unique").innerText = "+" + order.unique_code;
-  document.getElementById("qr-res-id").innerText = order.order_id;
-  
-  // Public QR URL
-  const qrImgUrl = `${CONFIG.API_URL}${order.qr_url}`;
-  document.getElementById("qr-res-img").src = qrImgUrl;
-
-  const statusBadge = document.getElementById("qr-res-status");
-  statusBadge.className = "badge badge-pending";
-  statusBadge.innerText = "⏳ MENUNGGU PEMBAYARAN...";
-
-  // Realtime Polling
-  if (qrCheckTimer) clearInterval(qrCheckTimer);
-  qrCheckTimer = setInterval(async () => {
-    if (!currentCreatedOrderId) return;
-    const res = await apiRequest(`/api/orders/${currentCreatedOrderId}`, "GET", null, false);
-    if (res.ok && res.data.success && res.data.data.status === "PAID") {
-      clearInterval(qrCheckTimer);
-      statusBadge.className = "badge badge-paid";
-      statusBadge.innerText = "🎉 PEMBAYARAN LUNAS!";
-      loadAllData();
-      showToast("🎉 Pembayaran Rp " + Number(order.total_amount).toLocaleString("id-ID") + " LUNAS!");
-    }
-  }, 3000);
-}
-
-async function forceCheckCurrentOrder() {
-  if (!currentCreatedOrderId) return;
-  const res = await apiRequest(`/api/orders/${currentCreatedOrderId}/check`, "POST", {}, false);
-  if (res.ok && res.data.success) {
-    const st = res.data.data ? res.data.data.status : "PAID";
-    showToast("Status Pesanan: " + st);
-    if (st === "PAID") {
-      const badge = document.getElementById("qr-res-status");
-      if (badge) {
-        badge.className = "badge badge-paid";
-        badge.innerText = "🎉 PEMBAYARAN LUNAS!";
-      }
-    }
-    loadAllData();
-  } else {
-    alert("Hasil cek: belum ada mutasi cocok.");
-  }
-}
-
-function copyPaymentInstruction() {
-  if (!currentCreatedOrderData) return;
-  const o = currentCreatedOrderData;
-  const text = `Halo Kak! Silakan selesaikan pembayaran:\n\n` +
-    `🛒 No. Pesanan: ${o.order_id}\n` +
-    `💵 Total Transfer: Rp ${Number(o.total_amount).toLocaleString("id-ID")}\n` +
-    `⚠️ Catatan: Wajib transfer TEPAT hingga 3 digit terakhir (+${o.unique_code}) agar terverifikasi otomatis.\n\n` +
-    `Scan QRIS melalui aplikasi ShopeePay, BCA, GoPay, OVO, atau Mobile Banking apa saja. Terima kasih!`;
-  
-  copyToClipboard(text);
-}
-
-// ==========================================
-// 6. Kelola Toko & API Keys (Tab Apps)
+// 5. Kelola Web Toko (Tab Apps)
 // ==========================================
 async function loadApps() {
   const tbody = document.getElementById("apps-tbody");
   if (!tbody) return;
 
-  const res = await apiRequest("/api/apps", "GET", null, true);
+  const res = await apiRequest("/api/apps", "GET");
   if (!res.ok || !res.data.success) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat daftar toko.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat daftar toko.</td></tr>`;
     return;
   }
 
   allApps = res.data.data || [];
-  refreshAppSelectors();
 
   if (allApps.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 32px;">Belum ada web toko yang didaftarkan. Gunakan form di sebelah kiri untuk membuat.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">Belum ada web toko yang didaftarkan. Gunakan form di sebelah kiri untuk membuat.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = allApps.map(a => {
-    const rawSecret = a.webhook_secret || "";
-    const maskedSecret = rawSecret ? "••••••••••••••••" : "-";
-
-    return `
-      <tr>
-        <td>
-          <div style="font-weight: 800; color: var(--text-main);">${a.name}</div>
-          <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${a.id}</div>
-        </td>
-        <td>
-          <div class="table-key-pill">
-            <code class="font-mono">${a.api_key}</code>
-            <button class="btn btn-secondary btn-xs" title="Salin API Key" onclick="copyToClipboard('${a.api_key}', this)">📋</button>
-          </div>
-        </td>
-        <td>
-          <div class="table-secret-pill">
-            <span id="secret-text-${a.id}" class="font-mono">${maskedSecret}</span>
-            <button class="btn btn-secondary btn-xs" title="Lihat/Sembunyikan Secret" onclick="toggleSecretVisibility('${a.id}', '${rawSecret}', this)">👁️</button>
-            <button class="btn btn-secondary btn-xs" title="Salin Webhook Secret" onclick="copyToClipboard('${rawSecret}', this)">📋</button>
-          </div>
-        </td>
-        <td>
-          <span style="font-size: 11.5px; font-family: monospace; color: var(--text-muted);" title="${a.webhook_url}">
-            ${a.webhook_url.length > 32 ? a.webhook_url.substring(0, 32) + '...' : a.webhook_url}
-          </span>
-        </td>
-        <td>
-          <span class="badge ${a.is_active ? 'badge-paid' : 'badge-expired'}">${a.is_active ? 'Aktif' : 'Non-aktif'}</span>
-        </td>
-        <td style="text-align: right;">
-          <button class="btn btn-danger btn-xs" onclick="deleteApp('${a.id}', '${a.name}')">Hapus</button>
-        </td>
-      </tr>
-    `;
-  }).join("");
-}
-
-function toggleSecretVisibility(appId, secret, btn) {
-  const elem = document.getElementById(`secret-text-${appId}`);
-  if (!elem) return;
-
-  if (elem.innerText.includes("•••")) {
-    elem.innerText = secret;
-    btn.innerText = "🔒";
-  } else {
-    elem.innerText = "••••••••••••••••";
-    btn.innerText = "👁️";
-  }
+  tbody.innerHTML = allApps.map(a => `
+    <tr>
+      <td>
+        <div style="font-weight: 800; color: var(--text-main);">${a.name}</div>
+        <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${a.id}</div>
+      </td>
+      <td>
+        <div class="table-key-pill">
+          <code class="font-mono">${a.api_key}</code>
+          <button class="btn btn-secondary btn-xs" title="Salin API Key" onclick="copyToClipboard('${a.api_key}', this)">📋</button>
+        </div>
+      </td>
+      <td>
+        <span style="font-size: 11.5px; font-family: monospace; color: var(--text-muted);" title="${a.webhook_url}">
+          ${a.webhook_url.length > 36 ? a.webhook_url.substring(0, 36) + '...' : a.webhook_url}
+        </span>
+      </td>
+      <td>
+        <span class="badge ${a.is_active ? 'badge-paid' : 'badge-expired'}">${a.is_active ? 'Aktif' : 'Non-aktif'}</span>
+      </td>
+      <td style="text-align: right;">
+        <button class="btn btn-danger btn-xs" onclick="deleteApp('${a.id}', '${a.name}')">Hapus</button>
+      </td>
+    </tr>
+  `).join("");
 }
 
 async function submitCreateApp(event) {
@@ -526,27 +347,21 @@ async function submitCreateApp(event) {
   btn.disabled = true;
   btn.innerText = "Mendaftarkan Toko...";
 
-  const res = await apiRequest("/api/apps", "POST", { name, webhook_url: webhook }, true);
+  const res = await apiRequest("/api/apps", "POST", { name, webhook_url: webhook });
   btn.disabled = false;
-  btn.innerHTML = `<span>➕</span> Daftarkan Web Toko & Dapatkan Kunci`;
+  btn.innerHTML = `<span>➕</span> Daftarkan Web Toko & Dapatkan API Key`;
 
   if (res.ok && res.data.success) {
     const created = res.data.data;
-    
-    // Auto set as active API key
-    CONFIG.API_KEY = created.api_key;
-    localStorage.setItem("paymentg_api_key", created.api_key);
 
     // Populate Modal
     document.getElementById("created-modal-name").innerText = created.name;
     document.getElementById("created-modal-apikey").value = created.api_key;
-    document.getElementById("created-modal-secret").value = created.webhook_secret;
 
     const envSnippet = 
 `# Konfigurasi PaymentG (${created.name})
 PAYMENTG_API_URL=${CONFIG.API_URL}
-PAYMENTG_API_KEY=${created.api_key}
-PAYMENTG_WEBHOOK_SECRET=${created.webhook_secret}`;
+PAYMENTG_API_KEY=${created.api_key}`;
 
     document.getElementById("created-modal-env").innerText = envSnippet;
 
@@ -570,7 +385,7 @@ function copyEnvSnippet(btn) {
 
 async function deleteApp(id, name) {
   if (!confirm(`Yakin ingin menghapus toko "${name}"?\nSemua tagihan terkait toko ini akan ikut dihapus.`)) return;
-  const res = await apiRequest(`/api/apps/${id}`, "DELETE", null, true);
+  const res = await apiRequest(`/api/apps/${id}`, "DELETE");
   if (res.ok) {
     showToast("Toko berhasil dihapus!");
     loadApps();
@@ -580,7 +395,7 @@ async function deleteApp(id, name) {
 }
 
 // ==========================================
-// 7. Clipboard & Toast Helpers
+// 6. Clipboard & Toast Helpers
 // ==========================================
 function copyToClipboard(text, btnElement = null) {
   if (!text) return;
@@ -640,30 +455,8 @@ function showToast(message) {
 }
 
 // ==========================================
-// 8. Order Actions & Modal Details
+// 7. Modal QR
 // ==========================================
-async function forceCheckOrder(orderId) {
-  const res = await apiRequest(`/api/orders/${orderId}/check`, "POST", {}, false);
-  if (res.ok && res.data.success) {
-    const st = res.data.data ? res.data.data.status : "Terverifikasi";
-    showToast(`Status Order: ${st}`);
-    loadAllData();
-  } else {
-    alert("Gagal cek order: " + (res.data ? res.data.error : res.error));
-  }
-}
-
-async function cancelOrder(orderId) {
-  if (!confirm(`Yakin ingin membatalkan tagihan ${orderId}?`)) return;
-  const res = await apiRequest(`/api/orders/${orderId}/cancel`, "POST", {}, false);
-  if (res.ok && res.data.success) {
-    showToast(`Order ${orderId} dibatalkan.`);
-    loadAllData();
-  } else {
-    alert("Gagal membatalkan order.");
-  }
-}
-
 function showQRModal(orderId, totalAmount, status = "PENDING") {
   const modal = document.getElementById("qr-modal");
   document.getElementById("modal-qr-img").src = `${CONFIG.API_URL}/api/orders/${orderId}/qr.png`;
@@ -680,7 +473,7 @@ function showQRModal(orderId, totalAmount, status = "PENDING") {
 }
 
 // ==========================================
-// 9. Token & Playwright Operations
+// 8. Token & Playwright Operations
 // ==========================================
 async function triggerPlaywrightRefresh() {
   const btn = document.getElementById("btn-playwright");
@@ -689,7 +482,7 @@ async function triggerPlaywrightRefresh() {
     btn.innerText = "⏳ Membuka Browser...";
   }
 
-  const res = await apiRequest("/api/token/refresh", "POST", {}, true);
+  const res = await apiRequest("/api/token/refresh", "POST", {});
   if (btn) {
     btn.disabled = false;
     btn.innerText = "🤖 Auto-Login Playwright";
@@ -707,7 +500,7 @@ async function manualUpdateToken() {
   const token = prompt("Masukkan Token ShopeePay baru (diawali B:...):");
   if (!token) return;
 
-  const res = await apiRequest("/api/config/token", "PUT", { token: token.trim() }, true);
+  const res = await apiRequest("/api/config/token", "PUT", { token: token.trim() });
   if (res.ok && res.data.success) {
     showToast("Token ShopeePay berhasil diperbarui!");
     loadAllData();
@@ -717,7 +510,7 @@ async function manualUpdateToken() {
 }
 
 // ==========================================
-// 10. Settings Modal
+// 9. Settings Modal
 // ==========================================
 function setupSettingsModal() {
   const modal = document.getElementById("settings-modal");
@@ -728,8 +521,6 @@ function setupSettingsModal() {
     openBtn.addEventListener("click", () => {
       document.getElementById("setting-api-url").value = CONFIG.API_URL;
       document.getElementById("setting-admin-key").value = CONFIG.ADMIN_KEY;
-      document.getElementById("setting-api-key").value = CONFIG.API_KEY;
-      refreshAppSelectors();
       modal.classList.add("active");
     });
   }
@@ -743,22 +534,14 @@ function setupSettingsModal() {
     saveBtn.addEventListener("click", () => {
       CONFIG.API_URL = document.getElementById("setting-api-url").value.trim().replace(/\/$/, "");
       CONFIG.ADMIN_KEY = document.getElementById("setting-admin-key").value.trim();
-      CONFIG.API_KEY = document.getElementById("setting-api-key").value.trim();
 
       localStorage.setItem("paymentg_api_url", CONFIG.API_URL);
       localStorage.setItem("paymentg_admin_key", CONFIG.ADMIN_KEY);
-      localStorage.setItem("paymentg_api_key", CONFIG.API_KEY);
 
       modal.classList.remove("active");
       showToast("Pengaturan API berhasil disimpan!");
       loadAllData();
     });
-  }
-}
-
-function syncSelectedAppToApiKey(apiKey) {
-  if (apiKey) {
-    document.getElementById("setting-api-key").value = apiKey;
   }
 }
 

@@ -65,7 +65,7 @@
   </header>
 
   <!-- ==========================================
-       2. Navigation Tabs (Scrollable Mobile)
+       2. Navigation Tabs (3 Main Focus Tabs)
        ========================================== -->
   <nav class="tabs-bar">
     <div class="tabs-container">
@@ -77,13 +77,9 @@
         <span class="tab-icon">📜</span>
         <span>Mutasi Transaksi</span>
       </button>
-      <button class="tab-btn" data-tab="tab-generator">
-        <span class="tab-icon">⚡</span>
-        <span>Buat QRIS</span>
-      </button>
       <button class="tab-btn" data-tab="tab-apps">
         <span class="tab-icon">🔑</span>
-        <span>Kelola Toko & API</span>
+        <span>Kelola Web Toko</span>
       </button>
     </div>
   </nav>
@@ -168,21 +164,21 @@
             <div class="step-num">1</div>
             <div class="step-text">
               <div class="step-title">Daftarkan Web Toko</div>
-              <div class="step-desc">Buka tab <b>Kelola Toko & API</b>, masukkan nama toko dan URL webhook Anda.</div>
+              <div class="step-desc">Buka tab <b>Kelola Web Toko</b>, masukkan nama toko dan URL webhook Anda.</div>
             </div>
           </div>
           <div class="step-item">
             <div class="step-num">2</div>
             <div class="step-text">
-              <div class="step-title">Salin API Key & Secret</div>
-              <div class="step-desc">Simpan kredensial toko di file <code>.env</code> aplikasi web Anda.</div>
+              <div class="step-title">Salin API Key</div>
+              <div class="step-desc">Pasang <code>PAYMENTG_API_KEY</code> di file <code>.env</code> aplikasi web toko Anda.</div>
             </div>
           </div>
           <div class="step-item">
             <div class="step-num">3</div>
             <div class="step-text">
-              <div class="step-title">Mulai Terima Bayaran</div>
-              <div class="step-desc">Panggil <code>POST /api/orders</code> untuk buat QRIS. Pembayaran terverifikasi otomatis.</div>
+              <div class="step-title">Otomatisasi Pembayaran</div>
+              <div class="step-desc">Web toko Anda panggil <code>POST /api/orders</code>. Saat bayar, webhook lunas dikirim otomatis.</div>
             </div>
           </div>
         </div>
@@ -193,8 +189,8 @@
         <b>💡 Tips Penggunaan PaymentG:</b>
         <ul>
           <li>Sesi token ShopeePay aktif berhari-hari hingga berminggu-minggu selama akun tidak di-logout di device lain.</li>
-          <li>Setiap pesanan otomatis diberi <b>kode unik acak (1–999)</b> sehingga sistem dapat membedakan transfer pembeli secara presisi.</li>
-          <li>Uji coba sistem kapan saja tanpa transfer uang asli dengan membuka <a href="/sandbox/" style="color: var(--primary); font-weight: 700;">🧪 Mode Sandbox</a>.</li>
+          <li>Setiap pesanan otomatis diberi <b>kode unik acak (1–999)</b> sehingga transfer pembeli terdeteksi secara presisi.</li>
+          <li>Uji coba checkout kapan saja tanpa transfer uang asli dengan membuka <a href="/sandbox/" style="color: var(--primary); font-weight: 700;">🧪 Mode Sandbox</a>.</li>
         </ul>
       </div>
     </section>
@@ -250,119 +246,7 @@
       </div>
     </section>
 
-    <!-- Tab 3: Buat Tagihan QRIS Baru -->
-    <section id="tab-generator" class="tab-content">
-      <div class="generator-grid">
-        <!-- Form Generator -->
-        <div class="card">
-          <div class="card-head">
-            <h2 class="card-head-title">⚡ Buat Tagihan QRIS Dinamis</h2>
-            <p class="card-head-desc">
-              Buat tagihan QRIS dengan kode unik otomatis untuk pengujian langsung.
-            </p>
-          </div>
-
-          <form onsubmit="submitCreateOrder(event)">
-            <div class="form-group">
-              <label class="form-label">Pilih Web Toko Pembuat Tagihan *</label>
-              <select id="gen-app-select" class="form-input" onchange="handleAppSelectChange()">
-                <option value="">Memuat daftar toko...</option>
-              </select>
-              <div class="form-help">API Key toko ini akan digunakan untuk membuat pesanan.</div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Nominal Pembayaran (Rp) *</label>
-              <div class="input-prefix-wrap">
-                <span class="input-prefix">Rp</span>
-                <input type="number" id="gen-amount" class="form-input has-prefix" value="10000" step="500" min="500" required>
-              </div>
-              <div class="form-help">Contoh: 10000, 25000, 50000. Kode unik (1-999) otomatis ditambahkan.</div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">No. Invoice / Reference ID (Opsional)</label>
-              <input type="text" id="gen-ref-id" class="form-input font-mono" placeholder="INV-2026-001">
-              <div class="form-help">Kosongkan untuk otomatis menghasilkan nomor acak.</div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group" style="flex: 1;">
-                <label class="form-label">Masa Berlaku (Menit)</label>
-                <input type="number" id="gen-expiry" class="form-input" value="15" min="1" max="120">
-              </div>
-
-              <div class="form-group" style="flex: 2;">
-                <label class="form-label">Catatan Metadata</label>
-                <input type="text" id="gen-metadata" class="form-input" placeholder="Item: Topup Saldo">
-              </div>
-            </div>
-
-            <button type="submit" id="btn-generate-order" class="btn btn-primary btn-block">
-              <span>⚡</span> Generate QRIS Tagihan
-            </button>
-          </form>
-        </div>
-
-        <!-- QR Preview Box -->
-        <div class="card" id="qr-result-box" style="display: none;">
-          <div class="card-head">
-            <h3 class="card-head-title">📱 QRIS Siap Discan</h3>
-            <p class="card-head-desc">Scan dengan ShopeePay, BCA, Mandiri, GoPay, OVO, atau Bank apa saja.</p>
-          </div>
-
-          <div class="qr-preview-box">
-            <div class="qr-image-container">
-              <img id="qr-res-img" class="qr-image" src="" alt="QRIS Code">
-              <div class="qr-scan-pulse"></div>
-            </div>
-
-            <div class="transfer-alert">
-              <span class="transfer-alert-icon">⚠️</span>
-              <div>Wajib transfer <b>TEPAT NOMINAL</b> beserta kode unik:</div>
-            </div>
-
-            <div id="qr-res-total" class="qr-amount-large">Rp 0</div>
-
-            <div class="qr-breakdown-card">
-              <div class="breakdown-row">
-                <span>Nominal Tagihan:</span>
-                <span id="qr-res-base" class="font-mono">Rp 0</span>
-              </div>
-              <div class="breakdown-row highlight">
-                <span>Kode Unik Verifikasi:</span>
-                <span id="qr-res-unique" class="font-mono font-bold">+0</span>
-              </div>
-              <div class="breakdown-divider"></div>
-              <div class="breakdown-row total">
-                <span>Total Harus Dibayar:</span>
-                <span id="qr-res-total-calc" class="font-mono font-bold">Rp 0</span>
-              </div>
-            </div>
-
-            <div class="qr-status-wrap">
-              <span id="qr-res-status" class="badge badge-pending">⏳ MENUNGGU PEMBAYARAN...</span>
-            </div>
-
-            <div class="qr-meta-wrap">
-              <div>Order ID: <code id="qr-res-id" class="font-mono">-</code></div>
-              <button class="btn btn-secondary btn-xs" onclick="copyToClipboard(document.getElementById('qr-res-id').innerText, this)">📋 Salin ID</button>
-            </div>
-
-            <div class="qr-actions-row">
-              <button class="btn btn-secondary btn-sm" onclick="forceCheckCurrentOrder()">
-                🔄 Cek Status Sekarang
-              </button>
-              <button class="btn btn-secondary btn-sm" onclick="copyPaymentInstruction()">
-                📋 Salin Petunjuk Bayar
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Tab 4: Kelola Toko & API -->
+    <!-- Tab 3: Kelola Web Toko -->
     <section id="tab-apps" class="tab-content">
       
       <!-- Banner Penjelasan Tab Toko -->
@@ -370,9 +254,9 @@
         <div class="info-hero-content">
           <div class="info-hero-icon">🔐</div>
           <div>
-            <h2 class="info-hero-title">Manajemen Integrasi Web Toko</h2>
+            <h2 class="info-hero-title">Manajemen Web Toko Terintegrasi</h2>
             <p class="info-hero-desc">
-              Daftarkan website toko atau aplikasi Anda di bawah ini untuk mendapatkan <b>API Key</b> (kunci membuat tagihan) dan <b>Webhook Secret</b> (kunci verifikasi notifikasi lunas).
+              Daftarkan website toko Anda di bawah ini untuk mendapatkan <b>API Key</b>. Kunci ini digunakan web toko Anda untuk membuat pesanan QRIS dan menerima notifikasi webhook saat pembeli transfer.
             </p>
           </div>
         </div>
@@ -384,7 +268,7 @@
           <div class="card-head">
             <h3 class="card-head-title">➕ Daftarkan Web Toko Baru</h3>
             <p class="card-head-desc">
-              Masukkan nama toko dan endpoint webhook di server Anda.
+              Cukup masukkan nama toko dan URL webhook di server Anda.
             </p>
           </div>
 
@@ -402,7 +286,7 @@
             </div>
 
             <button type="submit" id="btn-create-app" class="btn btn-primary btn-block">
-              <span>➕</span> Daftarkan Web Toko & Dapatkan Kunci
+              <span>➕</span> Daftarkan Web Toko & Dapatkan API Key
             </button>
           </form>
         </div>
@@ -412,7 +296,7 @@
           <div class="card-head flex-between">
             <div>
               <h3 class="card-head-title">📋 Daftar Web Terintegrasi</h3>
-              <p class="card-head-desc">Kredensial toko yang aktif dapat disalin kapan saja.</p>
+              <p class="card-head-desc">API Key toko yang aktif dapat disalin kapan saja.</p>
             </div>
             <button class="btn btn-secondary btn-sm" onclick="loadApps()">🔄 Refresh</button>
           </div>
@@ -423,14 +307,13 @@
                 <tr>
                   <th>Nama Toko</th>
                   <th>API Key</th>
-                  <th>Webhook Secret</th>
                   <th>Webhook URL</th>
                   <th>Status</th>
                   <th style="text-align: right;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="apps-tbody">
-                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">Memuat daftar toko...</td></tr>
+                <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Memuat daftar toko...</td></tr>
               </tbody>
             </table>
           </div>
@@ -444,7 +327,7 @@
        4. Modal: Web Toko Baru Berhasil Dibuat
        ========================================== -->
   <div id="created-app-modal" class="modal-overlay">
-    <div class="modal modal-lg">
+    <div class="modal">
       <div class="modal-header">
         <div class="modal-title-wrap">
           <span class="modal-success-badge">✓ Berhasil</span>
@@ -464,7 +347,7 @@
         <!-- API Key Field -->
         <div class="form-group" style="margin-top: 16px;">
           <label class="form-label flex-between">
-            <span>API Key (Kunci Buat Order)</span>
+            <span>API Key Toko</span>
             <span class="label-badge">X-API-Key</span>
           </label>
           <div class="copy-input-group">
@@ -473,22 +356,7 @@
               📋 Salin
             </button>
           </div>
-          <div class="form-help">Gunakan sebagai header <code>X-API-Key</code> saat request ke PaymentG.</div>
-        </div>
-
-        <!-- Webhook Secret Field -->
-        <div class="form-group">
-          <label class="form-label flex-between">
-            <span>Webhook Secret (Kunci Validasi HMAC)</span>
-            <span class="label-badge">X-Webhook-Signature</span>
-          </label>
-          <div class="copy-input-group">
-            <input type="text" id="created-modal-secret" class="form-input font-mono" readonly>
-            <button class="btn btn-primary btn-copy" onclick="copyToClipboard(document.getElementById('created-modal-secret').value, this)">
-              📋 Salin
-            </button>
-          </div>
-          <div class="form-help">Digunakan untuk memvalidasi tanda tangan notifikasi pembayaran dari server PaymentG.</div>
+          <div class="form-help">Gunakan sebagai header <code>X-API-Key</code> saat web toko request ke PaymentG.</div>
         </div>
 
         <!-- Ready to paste .env block -->
@@ -547,16 +415,7 @@
           <input type="password" id="setting-admin-key" class="form-input font-mono" placeholder="adm_secret_...">
           <button type="button" class="btn btn-secondary btn-sm" onclick="togglePasswordVisibility('setting-admin-key', this)">👁️</button>
         </div>
-        <div class="form-help">Kunci master admin untuk mengelola token ShopeePay dan daftar web toko.</div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Toko Aktif untuk Generator QRIS (X-API-Key)</label>
-        <select id="setting-app-picker" class="form-input" onchange="syncSelectedAppToApiKey(this.value)">
-          <option value="">Pilih dari daftar web toko...</option>
-        </select>
-        <input type="text" id="setting-api-key" class="form-input font-mono" style="margin-top: 6px;" placeholder="ak_...">
-        <div class="form-help">Kunci toko yang sedang digunakan di tab "Buat QRIS".</div>
+        <div class="form-help">Kunci master server untuk mengelola token ShopeePay dan daftar web toko.</div>
       </div>
 
       <div class="modal-footer flex-between" style="margin-top: 20px;">
@@ -571,7 +430,7 @@
 
   <!-- ==========================================
        6. QR Preview Modal (From Table Click)
-       ========================================== -->
+       ========================================= -->
   <div id="qr-modal" class="modal-overlay">
     <div class="modal" style="max-width: 380px; text-align: center;">
       <div class="modal-header">

@@ -10,7 +10,6 @@ import (
 
 	"paymentg/internal/database"
 	"paymentg/internal/model"
-	"paymentg/internal/util"
 )
 
 type WebhookService struct {
@@ -24,6 +23,7 @@ func NewWebhookService(db *database.DB) *WebhookService {
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
+
 func (w *WebhookService) Send(app *model.App, order *model.Order) error {
 	paidAt := ""
 	if order.PaidAt != nil {
@@ -46,14 +46,11 @@ func (w *WebhookService) Send(app *model.App, order *model.Order) error {
 		return err
 	}
 
-	sig := util.HMACSign(app.WebhookSecret, body)
-
 	req, err := http.NewRequest("POST", app.WebhookURL, bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Webhook-Signature", fmt.Sprintf("sha256=%s", sig))
 	req.Header.Set("X-Webhook-Event", "payment.success")
 
 	resp, err := w.httpClient.Do(req)
