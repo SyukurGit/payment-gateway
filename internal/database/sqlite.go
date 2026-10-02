@@ -26,6 +26,9 @@ func New(dataDir string) (*DB, error) {
 		return nil, err
 	}
 
+	// SQLite embedded DB works best with 1 open connection to avoid database locked errors under concurrent goroutine writes
+	db.SetMaxOpenConns(1)
+
 	d := &DB{db: db}
 	if err := d.migrate(); err != nil {
 		return nil, err

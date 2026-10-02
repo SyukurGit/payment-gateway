@@ -84,7 +84,7 @@ func (s *ShopeeClient) FetchTransactions(token string) ([]model.ShopeeTransactio
 	}
 
 	if apiResp.Code != 0 {
-		return nil, fmt.Errorf("shopee api error: code %d", apiResp.Code)
+		return nil, fmt.Errorf("shopee api error: code %d, msg: %s", apiResp.Code, apiResp.Msg)
 	}
 
 	return apiResp.Data.List, nil

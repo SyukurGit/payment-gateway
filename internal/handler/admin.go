@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,7 +40,7 @@ func (h *AdminHandler) UpdateToken(c *gin.Context) {
 		return
 	}
 
-	h.db.SetConfig("shopee_token_updated_at", time.Now().Format(time.RFC3339))
+	h.db.SetConfig("shopee_token_updated_at", time.Now().UTC().Format(time.RFC3339))
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": "token updated successfully"})
 }
 
@@ -57,7 +58,7 @@ func (h *AdminHandler) CreateApp(c *gin.Context) {
 		WebhookURL:    req.WebhookURL,
 		WebhookSecret: util.NewSecret(),
 		IsActive:      true,
-		CreatedAt:     time.Now().Format(time.RFC3339),
+		CreatedAt:     time.Now().UTC().Format(time.RFC3339),
 	}
 
 	if err := h.db.CreateApp(&app); err != nil {
@@ -127,13 +128,20 @@ func (h *AdminHandler) GetStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": stats})
 }
 
+func getPythonCommand() string {
+	if _, err := exec.LookPath("python3"); err == nil {
+		return "python3"
+	}
+	return "python"
+}
+
 func (h *AdminHandler) TriggerTokenRefresh(c *gin.Context) {
 	if _, err := os.Stat("refresh_token.py"); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "refresh_token.py not found"})
 		return
 	}
 
-	cmd := exec.Command("python", "refresh_token.py")
+	cmd := exec.Command(getPythonCommand(), "refresh_token.py")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error(), "output": string(out)})
@@ -142,11 +150,35 @@ func (h *AdminHandler) TriggerTokenRefresh(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": string(out)})
 }
 
+type pinAttempt struct {
+	count     int
+	lastError time.Time
+}
+
+var (
+	pinAttempts   = make(map[string]*pinAttempt)
+	pinAttemptsMu sync.Mutex
+)
+
 type PINRequest struct {
 	PIN string `json:"pin" binding:"required"`
 }
 
 func (h *AdminHandler) VerifyPIN(c *gin.Context) {
+	clientIP := c.ClientIP()
+
+	pinAttemptsMu.Lock()
+	attempt, exists := pinAttempts[clientIP]
+	if exists && attempt.count >= 5 && time.Since(attempt.lastError) < 1*time.Minute {
+		pinAttemptsMu.Unlock()
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"success": false,
+			"error":   "Terlalu banyak percobaan PIN salah. Silakan coba lagi dalam 1 menit.",
+		})
+		return
+	}
+	pinAttemptsMu.Unlock()
+
 	var req PINRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "PIN wajib diisi"})
@@ -154,9 +186,24 @@ func (h *AdminHandler) VerifyPIN(c *gin.Context) {
 	}
 
 	if !h.db.VerifyPIN(req.PIN) {
+		time.Sleep(500 * time.Millisecond) // mitigate brute-force
+		pinAttemptsMu.Lock()
+		if !exists {
+			pinAttempts[clientIP] = &pinAttempt{count: 1, lastError: time.Now()}
+		} else {
+			attempt.count++
+			attempt.lastError = time.Now()
+		}
+		pinAttemptsMu.Unlock()
+
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "PIN akses salah"})
 		return
 	}
+
+	// Reset attempts on successful PIN
+	pinAttemptsMu.Lock()
+	delete(pinAttempts, clientIP)
+	pinAttemptsMu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

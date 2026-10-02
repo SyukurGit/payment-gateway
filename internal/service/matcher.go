@@ -2,6 +2,7 @@ package service
 
 import (
 	"log"
+	"time"
 
 	"paymentg/internal/database"
 	"paymentg/internal/model"
@@ -41,6 +42,16 @@ func (m *Matcher) MatchTransactions(transactions []model.ShopeeTransaction) (int
 
 		order, err := m.db.GetPendingOrderByAmount(amount)
 		if err == nil && order != nil {
+			// Timing check: transaction create time should not be older than order creation (allow 60s clock skew)
+			if tx.CreateTime > 0 {
+				orderTime, parseErr := time.Parse(time.RFC3339, order.CreatedAt)
+				if parseErr == nil && tx.CreateTime < (orderTime.Unix()-60) {
+					log.Printf("[Matcher] Skipping TX %s (created %d): older than order %s created time %d", tx.TransactionID, tx.CreateTime, order.ID, orderTime.Unix())
+					m.db.SaveProcessedTransaction(tx.TransactionID, amount, "")
+					continue
+				}
+			}
+
 			log.Printf("[Matcher] MATCH FOUND! Order %s matched with TX %s (Amount: Rp %d)", order.ID, tx.TransactionID, amount)
 			err = m.db.MarkOrderPaid(order.ID, tx.TransactionID)
 			if err != nil {
@@ -57,6 +68,10 @@ func (m *Matcher) MatchTransactions(transactions []model.ShopeeTransaction) (int
 				}
 			}
 			matches++
+		} else {
+			// No matching pending order for this transaction. Save as processed to prevent
+			// phantom matching against future orders created with the same amount.
+			m.db.SaveProcessedTransaction(tx.TransactionID, amount, "")
 		}
 	}
 	return matches, nil

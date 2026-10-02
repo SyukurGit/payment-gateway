@@ -53,7 +53,8 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		expiryMinutes = h.cfg.DefaultExpiryMinutes
 	}
 	duration := time.Duration(expiryMinutes) * time.Minute
-	expiresAt := time.Now().Add(duration)
+	now := time.Now().UTC()
+	expiresAt := now.Add(duration)
 
 	uniqueCode, err := service.GenerateUniqueCode(h.db, req.Amount)
 	if err != nil {
@@ -68,7 +69,6 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
 	order := model.Order{
 		ID:             util.NewID(),
 		AppID:          app.ID,
@@ -178,7 +178,7 @@ func (h *OrderHandler) CheckOrder(c *gin.Context) {
 	client := service.NewShopeeClient()
 	txs, err := client.FetchTransactions(token)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "failed to fetch transactions"})
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "failed to fetch transactions: " + err.Error()})
 		return
 	}
 

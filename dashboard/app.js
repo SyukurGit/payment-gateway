@@ -3,14 +3,13 @@
  * Pure Vanilla JS, zero build dependencies.
  */
 
-// 1. Static Configuration (Smart default: localhost saat dev, paymentg.syukurapi.online saat di hosting)
-const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:";
-const DEFAULT_BACKEND = isLocal ? "http://localhost:3200" : "https://paymentg.syukurapi.online";
+// 1. Configuration (Smart dynamic default: auto-detect current host/origin)
+const DEFAULT_BACKEND = window.location.protocol.startsWith("http") ? window.location.origin : "http://localhost:3200";
 
 const CONFIG = {
   API_URL: localStorage.getItem("paymentg_api_url") || DEFAULT_BACKEND,
   ADMIN_KEY: localStorage.getItem("paymentg_admin_key") || "adm_secret_paymentg_2026",
-  API_KEY: localStorage.getItem("paymentg_api_key") || "ak_iFV5BsdprjxCb4AnpkCkrYzc"
+  API_KEY: localStorage.getItem("paymentg_api_key") || ""
 };
 
 // State
@@ -410,7 +409,9 @@ async function submitCreateApp(event) {
   const res = await apiRequest("/api/apps", "POST", { name, webhook_url: webhook }, true);
   if (res.ok && res.data.success) {
     const created = res.data.data;
-    alert(`App berhasil dibuat!\n\nAPI Key: ${created.api_key}\nWebhook Secret: ${created.webhook_secret}\n\nHarap simpan kredensial ini!`);
+    CONFIG.API_KEY = created.api_key;
+    localStorage.setItem("paymentg_api_key", created.api_key);
+    alert(`App berhasil dibuat!\n\nAPI Key: ${created.api_key}\nWebhook Secret: ${created.webhook_secret}\n\nKredensial otomatis tersimpan di dashboard untuk generate QRIS tagihan!`);
     document.getElementById("app-name").value = "";
     document.getElementById("app-webhook").value = "";
     loadApps();

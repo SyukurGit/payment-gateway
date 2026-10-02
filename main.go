@@ -38,7 +38,7 @@ func main() {
 	// 3. Store initial token in DB if provided via env
 	if cfg.ShopeeToken != "" {
 		db.SetConfig("shopee_token", cfg.ShopeeToken)
-		db.SetConfig("shopee_token_updated_at", time.Now().Format(time.RFC3339))
+		db.SetConfig("shopee_token_updated_at", time.Now().UTC().Format(time.RFC3339))
 		log.Println("[PaymentG] ShopeePay token loaded from env")
 	}
 
@@ -96,10 +96,22 @@ func main() {
 	r.Use(gin.Recovery())
 	r.Use(corsMiddleware()) // Simple CORS
 
+	// Serve static dashboard if directory exists
+	if _, err := os.Stat("dashboard"); err == nil {
+		r.Static("/dashboard", "./dashboard")
+		rootRedirect := func(c *gin.Context) {
+			c.Redirect(http.StatusMovedPermanently, "/dashboard/")
+		}
+		r.GET("/", rootRedirect)
+		r.HEAD("/", rootRedirect)
+	}
+
 	// Public routes
 	r.GET("/api/health", healthHandler.HealthCheck)
+	r.HEAD("/api/health", healthHandler.HealthCheck)
 	r.GET("/api/orders/:id/qr.png", orderHandler.GetQRImage) // public so <img> can load from any domain
-	r.POST("/api/auth/pin", adminHandler.VerifyPIN)          // public PIN gate for dashboard
+	r.HEAD("/api/orders/:id/qr.png", orderHandler.GetQRImage)
+	r.POST("/api/auth/pin", adminHandler.VerifyPIN) // public PIN gate for dashboard
 
 	// Client API routes (X-API-Key auth)
 	clientAPI := r.Group("/api")

@@ -57,6 +57,9 @@ func (w *WebhookService) Send(app *model.App, order *model.Order) error {
 	req.Header.Set("X-Webhook-Event", "payment.success")
 
 	resp, err := w.httpClient.Do(req)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	if err != nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		w.db.IncrementWebhookAttempts(order.ID)
 		if err != nil {

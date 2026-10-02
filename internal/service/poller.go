@@ -129,7 +129,7 @@ func (p *Poller) triggerTokenRefresh() {
 		}
 
 		log.Println("[Poller] Token kadaluwarsa/kosong. Menjalankan refresh_token.py (Playwright)...")
-		cmd := exec.Command("python", "refresh_token.py")
+		cmd := exec.Command(getPythonCommand(), "refresh_token.py")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			log.Printf("[Poller] refresh_token.py gagal: %v, output: %s", err, string(out))
@@ -137,6 +137,13 @@ func (p *Poller) triggerTokenRefresh() {
 			log.Printf("[Poller] refresh_token.py selesai: %s", string(out))
 		}
 	}()
+}
+
+func getPythonCommand() string {
+	if _, err := exec.LookPath("python3"); err == nil {
+		return "python3"
+	}
+	return "python"
 }
 
 func (p *Poller) Status() (bool, string, time.Time, bool) {
