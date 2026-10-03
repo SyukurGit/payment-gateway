@@ -207,9 +207,14 @@
         <button class="modal-close" onclick="closeHistoryModal()">✕</button>
       </div>
       <div class="modal-body">
-        <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px;">
-          Daftar pesanan digital yang pernah Anda selesaikan menggunakan browser ini (tersimpan di localStorage).
-        </p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <p style="font-size: 12.5px; color: var(--text-muted); margin: 0;">
+            Tersimpan di localStorage browser Anda.
+          </p>
+          <button class="btn btn-secondary btn-sm" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="clearAllHistory()">
+            🗑️ Hapus Semua
+          </button>
+        </div>
         <div id="history-list" style="max-height: 380px; overflow-y: auto;">
           <!-- Diisi otomatis oleh app.js -->
         </div>

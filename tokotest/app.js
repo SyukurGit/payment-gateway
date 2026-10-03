@@ -8,7 +8,7 @@ const PRODUCTS = [
   {
     id: "steam-50k",
     name: "Steam Wallet Code IDR 50.000",
-    price: 50000,
+    price: 1000,
     desc: "Kode voucher resmi Steam Wallet Indonesia untuk membeli game, DLC, dan item komunitas di Steam.",
     thumbClass: "product-thumb-steam",
     icon: "🎮",
@@ -18,7 +18,7 @@ const PRODUCTS = [
   {
     id: "mlbb-86dm",
     name: "Mobile Legends 86 Diamonds",
-    price: 20000,
+    price: 1200,
     desc: "Top up Diamond MLBB instan legal. Masukkan ID Akun & Zone ID untuk aktivasi otomatis.",
     thumbClass: "product-thumb-mlbb",
     icon: "💎",
@@ -28,7 +28,7 @@ const PRODUCTS = [
   {
     id: "spotify-1m",
     name: "Spotify Premium Individual 1 Bulan",
-    price: 45000,
+    price: 2000,
     desc: "Langganan Spotify Premium resmi tanpa jeda iklan, audio ultra high quality, dan bebas download offline.",
     thumbClass: "product-thumb-spotify",
     icon: "🎵",
@@ -486,6 +486,14 @@ function openHistoryModal() {
 function closeHistoryModal() {
   const modal = document.getElementById("history-modal");
   if (modal) modal.style.display = "none";
+}
+
+function clearAllHistory() {
+  if (!confirm("Hapus seluruh riwayat pesanan dari memori browser ini?")) return;
+  localStorage.removeItem("tokotest_orders");
+  openHistoryModal();
+  renderHistoryBanner();
+  showToast("🗑️ Seluruh riwayat pesanan berhasil dibersihkan!");
 }
 
 // --- 10. Modal Pengaturan API (ENV Editor di Browser) ---
