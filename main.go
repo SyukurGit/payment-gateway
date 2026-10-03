@@ -136,6 +136,11 @@ func main() {
 		r.StaticFile("/sandbox/sandbox.js", "./dashboard/sandbox.js")
 	}
 
+	// Serve static tokotest demo store if directory exists
+	if _, err := os.Stat("tokotest"); err == nil {
+		r.Static("/tokotest", "./tokotest")
+	}
+
 	// Public routes
 	r.GET("/api/health", healthHandler.HealthCheck)
 	r.HEAD("/api/health", healthHandler.HealthCheck)

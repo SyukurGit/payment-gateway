@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resi Pesanan & Voucher Digital — VoucherZone</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .receipt-container {
+      max-width: 640px;
+      margin: 40px auto 60px;
+    }
+    .receipt-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: var(--shadow);
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--border-color);
+      font-size: 13.5px;
+    }
+    .meta-label {
+      color: var(--text-muted);
+    }
+    .meta-val {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header>
+    <div class="container nav-container">
+      <a href="index.html" class="logo-area">
+        <div class="logo-icon">🎮</div>
+        <div class="logo-text">
+          <h1 id="brand-name">VoucherZone Digital</h1>
+          <p>Resi Pembayaran & Voucher</p>
+        </div>
+      </a>
+      <div class="nav-actions">
+        <a href="index.html" class="btn btn-secondary btn-sm">
+          ⬅ Kembali ke Toko
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container receipt-container">
+
+    <!-- Success Header -->
+    <div id="receipt-found" style="display: none;">
+
+      <!-- Banner Status -->
+      <div class="banner banner-history" style="margin-top: 0; margin-bottom: 24px;">
+        <div>
+          <strong>🎉 Transaksi Sukses!</strong> Produk digital Anda telah berhasil dikirimkan dan tersimpan di browser ini.
+        </div>
+        <a href="index.html" class="btn btn-secondary btn-sm">Beli Produk Lain</a>
+      </div>
+
+      <div class="receipt-card">
+        
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: var(--success-bg); color: var(--success); font-size: 32px; margin-bottom: 12px;">
+            ✓
+          </div>
+          <h2 style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">Pembayaran Terverifikasi Lunas</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+            Invoice: <code class="font-mono" id="rec-inv-id" style="color: #38bdf8; font-weight: 700;">-</code>
+          </p>
+        </div>
+
+        <!-- Box Voucher Digital Terkirim -->
+        <div class="voucher-box">
+          <div style="font-size: 12px; font-weight: 700; color: #34d399; text-transform: uppercase; letter-spacing: 1px;">
+            🎁 KODE VOUCHER / TOKEN DIGITAL ANDA
+          </div>
+          <div class="voucher-token" id="rec-voucher-code">
+            LOADING...
+          </div>
+          <button class="btn btn-success btn-sm" onclick="copyVoucherCode()">
+            📋 Salin Kode Voucher
+          </button>
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 10px;">
+            Gunakan kode di atas langsung pada platform terkait untuk menukarkan produk.
+          </div>
+        </div>
+
+        <!-- Rincian Transaksi -->
+        <div style="margin-top: 24px;">
+          <h4 style="font-size: 14px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px;">
+            Rincian Pesanan
+          </h4>
+
+          <div class="meta-row">
+            <span class="meta-label">Nama Produk</span>
+            <span class="meta-val" id="rec-product-name">-</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Nama Pembeli</span>
+            <span class="meta-val" id="rec-buyer-name">-</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Email Pengiriman</span>
+            <span class="meta-val" id="rec-buyer-email">-</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Metode Bayar</span>
+            <span class="meta-val"><span class="badge badge-success">QRIS All Payment</span></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Total Dibayar</span>
+            <span class="meta-val" id="rec-total-paid" style="color: #38bdf8; font-family: monospace; font-size: 15px;">Rp 0</span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">ID Transaksi Shopee</span>
+            <span class="meta-val"><code class="font-mono" id="rec-tx-id" style="font-size: 11px;">-</code></span>
+          </div>
+          <div class="meta-row">
+            <span class="meta-label">Waktu Pembayaran</span>
+            <span class="meta-val" id="rec-paid-at" style="font-size: 12.5px;">-</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 12px;">
+          <a href="index.html" class="btn btn-primary btn-block">
+            🛒 Belanja Lagi
+          </a>
+          <button class="btn btn-secondary btn-block" onclick="window.print()">
+            🖨️ Cetak Resi
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Not Found State -->
+    <div id="receipt-not-found" style="display: none;" class="receipt-card" style="text-align: center;">
+      <div style="text-align: center; padding: 20px 0;">
+        <div style="font-size: 54px; margin-bottom: 16px;">🔍</div>
+        <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">Pesanan Tidak Ditemukan</h2>
+        <p style="color: var(--text-muted); font-size: 13.5px; max-width: 440px; margin: 0 auto 24px;">
+          Nomor invoice ini tidak tercatat dalam riwayat browser Anda. Pastikan Anda membuka link ini dari perangkat atau browser yang sama saat melakukan pembayaran.
+        </p>
+        <a href="index.html" class="btn btn-primary">
+          ⬅ Kembali ke Katalog Toko
+        </a>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="toast">Notifikasi</div>
+
+  <script src="config.js"></script>
+  <script>
+    // Ambil Invoice ID dari Parameter URL (?inv=INV-xxx)
+    const urlParams = new URLSearchParams(window.location.search);
+    const invoiceId = urlParams.get("inv") || urlParams.get("id");
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // Set nama brand
+      const brand = document.getElementById("brand-name");
+      if (brand && window.STORE_CONFIG) brand.innerText = window.STORE_CONFIG.STORE_NAME;
+
+      if (!invoiceId) {
+        showNotFound();
+        return;
+      }
+
+      loadReceipt(invoiceId);
+    });
+
+    function loadReceipt(inv) {
+      let orders = [];
+      try {
+        const raw = localStorage.getItem("tokotest_orders");
+        orders = raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        orders = [];
+      }
+
+      const order = orders.find(x => x.reference_id === inv);
+
+      if (!order) {
+        showNotFound();
+        return;
+      }
+
+      // Render Data Order
+      document.getElementById("rec-inv-id").innerText = order.reference_id;
+      document.getElementById("rec-voucher-code").innerText = order.voucher_code || "KODE-TERKIRIM-SUKSES";
+      document.getElementById("rec-product-name").innerText = order.product ? order.product.name : "Produk Digital";
+      document.getElementById("rec-buyer-name").innerText = order.buyer ? order.buyer.name : "-";
+      document.getElementById("rec-buyer-email").innerText = order.buyer ? order.buyer.email : "-";
+      document.getElementById("rec-total-paid").innerText = `Rp ${Number(order.total_amount).toLocaleString("id-ID")}`;
+      document.getElementById("rec-tx-id").innerText = order.shopee_tx_id || "TX-VERIFIED";
+      
+      const paidDate = order.paid_at ? new Date(order.paid_at).toLocaleString("id-ID", { dateStyle: "long", timeStyle: "medium" }) : "-";
+      document.getElementById("rec-paid-at").innerText = paidDate;
+
+      document.getElementById("receipt-found").style.display = "block";
+      document.getElementById("receipt-not-found").style.display = "none";
+    }
+
+    function showNotFound() {
+      document.getElementById("receipt-found").style.display = "none";
+      document.getElementById("receipt-not-found").style.display = "block";
+    }
+
+    function copyVoucherCode() {
+      const code = document.getElementById("rec-voucher-code").innerText.trim();
+      navigator.clipboard.writeText(code).then(() => {
+        showToast("📋 Kode voucher berhasil disalin!");
+      }).catch(() => {
+        prompt("Salin kode voucher Anda:", code);
+      });
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      if (!t) return;
+      t.innerText = msg;
+      t.style.display = "block";
+      setTimeout(() => { t.style.display = "none"; }, 3000);
+    }
+  </script>
+</body>
+</html>
