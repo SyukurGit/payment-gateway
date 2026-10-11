@@ -1,8 +1,18 @@
 import os
 import sys
+import re
 from pathlib import Path
 import httpx
 from playwright.sync_api import sync_playwright
+
+# Force UTF-8 output on Windows console
+if sys.platform == "win32":
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 # 1. Load config from .env
 env_path = Path(__file__).parent / ".env"
@@ -19,6 +29,74 @@ ADMIN_KEY = config.get("ADMIN_KEY", "adm_secret_paymentg_2026")
 PAYMENTG_API = f"http://localhost:{PORT}/api/config/token"
 PROFILE_DIR = os.path.join(os.path.dirname(__file__), "data", "browser_profile")
 SHOPEE_URL = "https://partner.shopee.co.id/shopeepay-portal/transactions"
+
+# Konfigurasi VPS untuk auto-sync
+VPS_URL = config.get("VPS_URL", "https://paymentg.syukurapi.online")
+VPS_ADMIN_KEY = config.get("VPS_ADMIN_KEY", "")
+
+
+def update_env_token(new_token):
+    """Update SHOPEE_TOKEN di .env file lokal."""
+    if not env_path.exists():
+        print("[-] .env file tidak ditemukan, skip simpan ke .env")
+        return False
+
+    content = env_path.read_text(encoding="utf-8")
+
+    # Ganti baris SHOPEE_TOKEN=... yang sudah ada
+    if re.search(r"^SHOPEE_TOKEN=.*$", content, re.MULTILINE):
+        content = re.sub(
+            r"^SHOPEE_TOKEN=.*$",
+            f"SHOPEE_TOKEN={new_token}",
+            content,
+            flags=re.MULTILINE,
+        )
+    else:
+        # Tambahkan jika belum ada
+        content = content.rstrip("\n") + f"\nSHOPEE_TOKEN={new_token}\n"
+
+    env_path.write_text(content, encoding="utf-8")
+    print("[+] Token disimpan ke .env lokal")
+    return True
+
+
+def sync_to_vps(token):
+    """Kirim token ke VPS via HTTPS API."""
+    if not VPS_ADMIN_KEY:
+        print("[!] VPS_ADMIN_KEY kosong di .env, skip sync ke VPS")
+        print("    Tambahkan VPS_ADMIN_KEY=xxx di .env untuk auto-sync")
+        return False
+
+    print(f"[*] Sync ke VPS: {VPS_URL}...")
+    try:
+        res = httpx.put(
+            f"{VPS_URL}/api/config/token",
+            headers={"X-Admin-Key": VPS_ADMIN_KEY, "Content-Type": "application/json"},
+            json={"token": token},
+            timeout=15,
+        )
+        if res.status_code == 200:
+            print("[+] OK! Token berhasil disinkronkan ke VPS!")
+            # Verifikasi health
+            try:
+                health = httpx.get(f"{VPS_URL}/api/health", timeout=10)
+                if health.status_code == 200:
+                    data = health.json()
+                    if data.get("success") and data.get("data", {}).get("token_valid"):
+                        print("[+] OK! VPS health: token_valid = true")
+                    else:
+                        detail = data.get("data", {}).get("token_error", "N/A")
+                        print(f"[!] WARN: VPS health: token_valid = false ({detail})")
+            except Exception:
+                pass
+            return True
+        else:
+            print(f"[-] GAGAL sync VPS: HTTP {res.status_code} {res.text}")
+            return False
+    except Exception as e:
+        print(f"[-] GAGAL sync VPS: {e}")
+        return False
+
 
 def refresh_token(headless=True):
     print(f"[*] Menjalankan Playwright Chromium (Headless: {headless})...")
@@ -87,6 +165,11 @@ def refresh_token(headless=True):
 
         if token:
             print(f"[+] Token berhasil didapatkan: {token[:32]}...")
+
+            # 1. Simpan token baru ke .env lokal
+            update_env_token(token)
+
+            # 2. Update database lokal via localhost API
             try:
                 res = httpx.put(
                     PAYMENTG_API,
@@ -95,12 +178,17 @@ def refresh_token(headless=True):
                     timeout=10
                 )
                 if res.status_code == 200:
-                    print("[+] Token berhasil diperbarui ke PaymentG database!")
-                    return True
+                    print("[+] Token berhasil diperbarui ke PaymentG database lokal!")
                 else:
-                    print(f"[-] Gagal update ke API: {res.status_code} {res.text}")
+                    print(f"[-] Gagal update ke API lokal: {res.status_code} {res.text}")
             except Exception as e:
-                print(f"[-] Gagal menghubungi PaymentG API: {e}")
+                print(f"[-] Gagal menghubungi PaymentG API lokal: {e}")
+                print("    (Server lokal mungkin tidak jalan — bukan masalah jika hanya butuh sync VPS)")
+
+            # 3. Sync token ke VPS
+            sync_to_vps(token)
+
+            return True
         else:
             print("[-] Gagal memperbarui token.")
         return False

@@ -167,19 +167,29 @@ Endpoint toko Anda cukup membaca payload tersebut, memperbarui database status p
 
 Sesi dashboard ShopeePay Merchant memerlukan token aktif untuk membaca mutasi. Tersedia 2 mekanisme:
 
-### A. Otomatis: Playwright Headless Bot
+### A. Otomatis: Playwright Headless Bot (Lokal / VPS)
 - Jalankan setup login sekali saja:
   ```bash
   python refresh_token.py --setup
   ```
-- Server Go otomatis memanggil `refresh_token.py` di latar belakang bila mendeteksi token kedaluwarsa. Konsumsi RAM: 0 MB saat idle, ~90 MB selama 3 detik saat refresh.
+- Script akan membuka browser Chromium, mendeteksi token baru, otomatis menyimpannya ke `.env`, mengupdate database lokal, dan langsung mensinkronkan ke VPS (`https://paymentg.syukurapi.online`).
 
-### B. Cepat: 1-Click Bookmarklet Browser
-Jika tidak menggunakan Playwright, pasang bookmarklet ini di browser:
-```javascript
-javascript:void(function(){var d=window.injectData||window['injectData'];if(d&&d.User&&d.User.token){fetch('http://localhost:3200/api/config/token',{method:'PUT',headers:{'Content-Type':'application/json','X-Admin-Key':'adm_secret_paymentg_2026'},body:JSON.stringify({token:d.User.token})}).then(r=>r.json()).then(j=>{alert('Token ShopeePay berhasil dikirim ke PaymentG!')}).catch(e=>alert('Gagal: '+e))}else{alert('Buka partner.shopee.co.id terlebih dahulu!')}}())
+### B. Sinkronisasi Cepat: `sync_token.py` (Lokal ➔ VPS)
+Jika Anda memiliki token baru dari browser:
+```bash
+# Sinkronkan token dari .env lokal ke VPS
+python sync_token.py
+
+# Atau langsung masukkan token baru (otomatis update .env lokal + VPS):
+python sync_token.py "B:TOKEN_BARU_DISINI..."
 ```
-Setiap kali membuka `https://partner.shopee.co.id/`, klik bookmarklet dan token langsung terbarukan.
+
+### C. 1-Click Bookmarklet Browser (Langsung ke VPS)
+Simpan bookmarklet ini di bookmark browser Chrome/Edge Anda:
+```javascript
+javascript:void(function(){var d=window.injectData||window['injectData'];if(d&&d.User&&d.User.token){fetch('https://paymentg.syukurapi.online/api/config/token',{method:'PUT',headers:{'Content-Type':'application/json','X-Admin-Key':'pg_ZZio-WwakXZLozuUvjphxYAh_L9MnnazjPbhakBwKDE'},body:JSON.stringify({token:d.User.token})}).then(r=>r.json()).then(j=>{if(j.success){alert('Token ShopeePay BERHASIL disinkronkan ke VPS!')}else{alert('Gagal: '+(j.error||JSON.stringify(j)))}}).catch(e=>alert('Gagal menghubungi VPS: '+e))}else{alert('Buka https://partner.shopee.co.id/ terlebih dahulu!')}}())
+```
+Setiap kali membuka `https://partner.shopee.co.id/` di browser, cukup klik bookmarklet ini sekali dan token di VPS langsung aktif.
 
 ---
 
