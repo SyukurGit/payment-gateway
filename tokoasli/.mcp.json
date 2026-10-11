@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "rea": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "C:/laragon/www/paymentg/tokoasli/rea/scripts/rea.mjs",
+        "mcp"
+      ],
+      "env": {}
+    }
+  }
+}

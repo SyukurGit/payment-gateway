@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - TokoAsli</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body class="bg-[#0b0f19] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+
+    <!-- 1. LOGIN SCREEN -->
+    <div id="login-card" class="min-h-screen flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-sm rounded-3xl p-8 border border-slate-700/80 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-black text-white text-2xl mx-auto mb-4 shadow-lg shadow-blue-500/20">
+                ⚡
+            </div>
+            <h1 class="text-xl font-black text-white text-center">Admin Portal</h1>
+            <p class="text-slate-400 text-xs text-center mt-1 mb-6">Masukkan Password Admin untuk mengelola toko</p>
+
+            <form onsubmit="handleAdminLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Password Admin</label>
+                    <input type="password" id="admin-password" placeholder="••••••••" required
+                           class="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm">
+                </div>
+
+                <div id="login-error" class="hidden mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium text-center"></div>
+
+                <button type="submit" id="btn-login"
+                        class="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition shadow-lg shadow-blue-500/25 active:scale-95">
+                    Masuk ke Dashboard →
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. DASHBOARD SCREEN -->
+    <div id="admin-dashboard" class="hidden flex-1 flex flex-col">
+        <!-- Navbar Admin -->
+        <header class="border-b border-slate-800 bg-[#0b0f19]/80 backdrop-blur-xl sticky top-0 z-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="font-extrabold text-lg text-white">Toko<span class="text-blue-500">Asli</span></span>
+                    <span class="px-2.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold uppercase tracking-wider">
+                        Admin Portal
+                    </span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="/" target="_blank" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition border border-slate-700">
+                        Lihat Web Toko ↗
+                    </a>
+                    <button onclick="handleLogout()" class="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold transition border border-red-500/20">
+                        Keluar
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full flex flex-col gap-8">
+            <!-- 4 Metrik Kartu -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-card rounded-2xl p-5 border border-slate-800">
+                    <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider block">Total Omzet</span>
+                    <span id="stat-revenue" class="text-2xl font-black text-emerald-400 mt-1 block">Rp 0</span>
+                </div>
+                <div class="glass-card rounded-2xl p-5 border border-slate-800">
+                    <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider block">Pesanan Lunas (PAID)</span>
+                    <span id="stat-paid-orders" class="text-2xl font-black text-blue-400 mt-1 block">0</span>
+                </div>
+                <div class="glass-card rounded-2xl p-5 border border-slate-800">
+                    <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider block">Menunggu Bayar</span>
+                    <span id="stat-pending-orders" class="text-2xl font-black text-amber-400 mt-1 block">0</span>
+                </div>
+                <div class="glass-card rounded-2xl p-5 border border-slate-800">
+                    <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider block">Total Produk</span>
+                    <span id="stat-products" class="text-2xl font-black text-slate-200 mt-1 block">0</span>
+                </div>
+            </div>
+
+            <!-- Bagian 1: Manajemen Produk -->
+            <section class="glass-card rounded-3xl p-6 border border-slate-800">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="text-xl font-black text-white">Katalog & Stok Produk</h2>
+                        <p class="text-slate-400 text-xs mt-0.5">Kelola produk, ubah harga, dan masukkan stok akun/voucher</p>
+                    </div>
+                    <button onclick="openAddProductModal()" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-lg shadow-blue-500/25 flex items-center gap-1.5">
+                        <span>+</span> Tambah Produk Baru
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                <th class="pb-3 px-4">Produk</th>
+                                <th class="pb-3 px-4">Harga</th>
+                                <th class="pb-3 px-4">Sisa Stok</th>
+                                <th class="pb-3 px-4">Status</th>
+                                <th class="pb-3 px-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-table-body">
+                            <!-- Populated via admin.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Bagian 2: Monitoring Pesanan -->
+            <section class="glass-card rounded-3xl p-6 border border-slate-800">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="text-xl font-black text-white">Monitoring Pesanan</h2>
+                        <p class="text-slate-400 text-xs mt-0.5">Daftar transaksi masuk dan riwayat pembayaran</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input type="text" id="order-search-input" oninput="handleOrderSearch(this.value)" placeholder="🔍 Cari ID / Email..." class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 w-44 sm:w-56 transition">
+                        <button onclick="filterOrderStatus('ALL')" class="btn-order-filter px-3 py-1.5 rounded-lg text-xs font-bold transition bg-blue-600 text-white cursor-pointer">Semua</button>
+                        <button onclick="filterOrderStatus('PAID')" class="btn-order-filter px-3 py-1.5 rounded-lg text-xs font-bold transition bg-slate-800 text-slate-400 hover:text-white cursor-pointer">Lunas</button>
+                        <button onclick="filterOrderStatus('PENDING')" class="btn-order-filter px-3 py-1.5 rounded-lg text-xs font-bold transition bg-slate-800 text-slate-400 hover:text-white cursor-pointer">Pending</button>
+                        <button onclick="filterOrderStatus('EXPIRED')" class="btn-order-filter px-3 py-1.5 rounded-lg text-xs font-bold transition bg-slate-800 text-slate-400 hover:text-white cursor-pointer">Expired</button>
+                        <button onclick="filterOrderStatus('CANCELLED')" class="btn-order-filter px-3 py-1.5 rounded-lg text-xs font-bold transition bg-slate-800 text-slate-400 hover:text-white cursor-pointer">Cancelled</button>
+                        <button onclick="exportOrdersCSV()" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer shadow-sm">
+                            <span>📥</span> Ekspor CSV
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                <th class="pb-3 px-4">Invoice</th>
+                                <th class="pb-3 px-4">Produk & Pembeli</th>
+                                <th class="pb-3 px-4">Total Bayar</th>
+                                <th class="pb-3 px-4">Status</th>
+                                <th class="pb-3 px-4">Waktu</th>
+                                <th class="pb-3 px-4 text-right">Opsi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-table-body">
+                            <!-- Populated via admin.js -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Kontrol Paginasi Pesanan -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-4 border-t border-slate-800 text-xs text-slate-400">
+                    <div>
+                        Menampilkan halaman <strong id="orders-current-page" class="text-slate-200">1</strong> dari <strong id="orders-total-pages" class="text-slate-200">1</strong> (<span id="orders-total-count">0</span> total pesanan)
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-orders-prev" onclick="changeOrdersPage(-1)" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition border border-slate-700 cursor-pointer">
+                            ← Sebelumnya
+                        </button>
+                        <button id="btn-orders-next" onclick="changeOrdersPage(1)" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition border border-slate-700 cursor-pointer">
+                            Selanjutnya →
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAL 1: TAMBAH / EDIT PRODUK -->
+    <div id="product-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border border-slate-700 animate-in fade-in zoom-in-95 duration-200">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <h3 id="prod-modal-title" class="font-bold text-slate-100 text-lg">Tambah Produk</h3>
+                <button onclick="closeProductModal()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+
+            <form onsubmit="saveProduct(event)" class="p-6 flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Nama Produk *</label>
+                    <input type="text" id="prod-name" placeholder="Misal: Netflix 1 Bulan Premium" required
+                           class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm focus:border-blue-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Kategori</label>
+                        <input type="text" id="prod-category" placeholder="Streaming, Game, dll"
+                               class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Harga (Rp) *</label>
+                        <input type="number" id="prod-price" placeholder="35000" required min="1"
+                               class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm focus:border-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Tipe Pengiriman Stok</label>
+                    <select id="prod-delivery-type" onchange="toggleFixedContentField()"
+                            class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm focus:border-blue-500 focus:outline-none">
+                        <option value="pool">Pool Stok (Akun / Serial Key unik, berkurang saat dibeli)</option>
+                        <option value="fixed">Link Tetap / File Sama (Unlimited, misal link GDrive)</option>
+                    </select>
+                </div>
+
+                <div id="box-fixed-content" class="hidden">
+                    <label class="block text-xs font-semibold text-amber-400 uppercase tracking-wider mb-1.5">Konten/Link Tetap (Fixed Content)</label>
+                    <textarea id="prod-fixed-content" rows="2" placeholder="https://drive.google.com/... atau kode akses"
+                              class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm focus:border-blue-500 focus:outline-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Deskripsi Produk</label>
+                    <textarea id="prod-desc" rows="2" placeholder="Benefit, garansi, atau instruksi pemakaian"
+                              class="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm focus:border-blue-500 focus:outline-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Foto Produk (Upload Komputer / URL Luar)</label>
+                    <div class="flex flex-col gap-2.5">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <label class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer transition flex items-center gap-2 shadow-md shadow-blue-600/20 active:scale-95">
+                                <span>📁</span>
+                                <span id="btn-upload-text">Pilih Foto dari Komputer</span>
+                                <input type="file" id="prod-file-input" accept="image/*" class="hidden" onchange="handleImageFileUpload(event)">
+                            </label>
+                            <span class="text-xs text-slate-400">atau</span>
+                            <input type="text" id="prod-image" placeholder="Paste URL gambar (https://...)" 
+                                   class="flex-1 min-w-[200px] px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-sm focus:border-blue-500 focus:outline-none"
+                                   oninput="updateImagePreview(this.value)">
+                        </div>
+                        <!-- Preview Box -->
+                        <div id="image-preview-container" class="hidden items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800">
+                            <img id="image-preview" src="" alt="Preview" class="w-14 h-14 object-cover rounded-lg border border-slate-700">
+                            <div class="flex-1 min-w-0">
+                                <p id="image-preview-url" class="text-xs text-slate-300 font-mono truncate"></p>
+                                <span class="text-[11px] text-emerald-400 font-semibold">✓ Gambar Siap Digunakan</span>
+                            </div>
+                            <button type="button" onclick="clearProductImage()" class="text-xs text-red-400 hover:text-red-300 font-semibold">Hapus</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-2">
+                    <input type="checkbox" id="prod-is-active" class="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700">
+                    <label for="prod-is-active" class="text-sm font-semibold text-slate-200">Tampilkan di Halaman Utama (Aktif)</label>
+                </div>
+
+                <div class="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+                    <button type="button" onclick="closeProductModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-xs font-semibold">Batal</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-lg shadow-blue-500/25">Simpan Produk</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: BULK TEXTAREA UPLOAD STOK -->
+    <div id="stock-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border border-slate-700 animate-in fade-in zoom-in-95 duration-200">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-slate-100 text-lg">Upload Stok Akun / Voucher</h3>
+                    <p id="stock-prod-name" class="text-xs text-blue-400 font-semibold"></p>
+                </div>
+                <button onclick="closeStockModal()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Paste Daftar Akun / Serial Key (1 Baris = 1 Item):</label>
+                    <span class="text-xs text-emerald-400 font-bold"><span id="stock-counter">0</span> baris terdeteksi</span>
+                </div>
+
+                <textarea id="stock-lines" rows="8" oninput="updateStockCount()" placeholder="user1@email.com|pass123&#10;user2@email.com|pass456&#10;SERIAL-KEY-XXXXX"
+                          class="w-full p-4 rounded-2xl bg-slate-950 border border-slate-700 font-mono text-xs text-slate-200 focus:border-blue-500 focus:outline-none"></textarea>
+
+                <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+                    Setiap kali ada pembeli bayar lunas, sistem akan otomatis mengambil 1 baris teratas dan memberikannya ke pembeli.
+                </p>
+
+                <div class="pt-5 border-t border-slate-800 flex items-center justify-end gap-3 mt-4">
+                    <button onclick="closeStockModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-xs font-semibold">Batal</button>
+                    <button onclick="submitStockUpload()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg shadow-emerald-600/25">
+                        Tambahkan ke Stok Toko →
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: DETAIL PESANAN & INTIP AKUN TERKIRIM -->
+    <div id="order-detail-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border border-slate-700 animate-in fade-in zoom-in-95 duration-200">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-slate-100 text-lg">Rincian Transaksi</h3>
+                    <p id="admin-detail-invoice" class="font-mono text-xs text-blue-400 font-bold">#ORD-...</p>
+                </div>
+                <button onclick="closeOrderDetailModal()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+
+            <div class="p-6 flex flex-col gap-4">
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                        <span class="text-slate-400 block mb-0.5">Produk:</span>
+                        <span id="admin-detail-prod" class="font-bold text-slate-200 text-sm"></span>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                        <span class="text-slate-400 block mb-0.5">Total Bayar:</span>
+                        <span id="admin-detail-amount" class="font-bold text-emerald-400 text-sm"></span>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                        <span class="text-slate-400 block mb-0.5">Email Pembeli:</span>
+                        <span id="admin-detail-email" class="font-semibold text-slate-200"></span>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-900 border border-slate-800">
+                        <span class="text-slate-400 block mb-0.5">Status:</span>
+                        <span id="admin-detail-status" class="font-bold"></span>
+                    </div>
+                </div>
+
+                <div class="text-xs text-slate-400 flex flex-col gap-1 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <div>Waktu Dibuat: <strong id="admin-detail-created" class="text-slate-300"></strong></div>
+                    <div>Waktu Lunas: <strong id="admin-detail-paid" class="text-slate-300"></strong></div>
+                    <div>ShopeePay TX: <strong id="admin-detail-tx" class="text-slate-300 font-mono"></strong></div>
+                </div>
+
+                <!-- Box Konten Akun / Voucher yang Terkirim -->
+                <div>
+                    <label class="block text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                        <span>🎁 Isi Produk yang Diberikan ke Pembeli:</span>
+                        <button onclick="copyAdminDeliveryContent()" class="text-xs text-blue-400 hover:text-blue-300 font-normal">Salin</button>
+                    </label>
+                    <textarea id="admin-detail-delivery" readonly rows="3"
+                              class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 font-mono text-xs text-emerald-300 focus:outline-none select-all resize-none"></textarea>
+                </div>
+
+                <div class="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                    <button onclick="closeOrderDetailModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-xs font-semibold cursor-pointer">Tutup</button>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-admin-mark-paid" onclick="markCurrentOrderPaid()"
+                                class="hidden px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-md shadow-emerald-600/20 cursor-pointer">
+                            ⚡ Konfirmasi Lunas Manual
+                        </button>
+                        <button id="btn-admin-resend-modal" onclick="resendCurrentOrderEmail()"
+                                class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-md shadow-blue-500/20 cursor-pointer">
+                            ✉️ Kirim Ulang Email ke Pembeli
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: RINCIAN STOK POOL (Tersedia, Held, Terjual) -->
+    <div id="stock-detail-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl border border-slate-700 animate-in fade-in zoom-in-95 duration-200">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-slate-100 text-lg">Rincian Pool Stok</h3>
+                    <p id="stock-detail-prod-name" class="text-xs text-blue-400 font-semibold"></p>
+                </div>
+                <button onclick="closeStockDetailModal()" class="text-slate-400 hover:text-white text-xl leading-none">&times;</button>
+            </div>
+
+            <div class="p-6 flex flex-col gap-4 max-h-[80vh] overflow-y-auto">
+                <!-- Ringkasan Statistik Stok -->
+                <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                    <div class="p-3 rounded-2xl bg-slate-900 border border-slate-800">
+                        <span class="text-slate-400 block mb-0.5">Tersedia</span>
+                        <span id="stock-summary-available" class="text-lg font-black text-emerald-400">0</span>
+                    </div>
+                    <div class="p-3 rounded-2xl bg-slate-900 border border-slate-800">
+                        <span class="text-slate-400 block mb-0.5">Sedang Hold</span>
+                        <span id="stock-summary-held" class="text-lg font-black text-amber-400">0</span>
+                    </div>
+                    <div class="p-3 rounded-2xl bg-slate-900 border border-slate-800">
+                        <span class="text-slate-400 block mb-0.5">Terjual</span>
+                        <span id="stock-summary-sold" class="text-lg font-black text-blue-400">0</span>
+                    </div>
+                    <div class="p-3 rounded-2xl bg-slate-900 border border-slate-800">
+                        <span class="text-slate-400 block mb-0.5">Total Pool</span>
+                        <span id="stock-summary-total" class="text-lg font-black text-slate-200">0</span>
+                    </div>
+                </div>
+
+                <!-- Tabel Item Stok -->
+                <div class="overflow-x-auto rounded-xl border border-slate-800">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            <tr>
+                                <th class="p-3">ID</th>
+                                <th class="p-3">Konten Akun / Lisensi</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3 text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-items-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Populated via admin.js -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+                    <button onclick="closeStockDetailModal()" class="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-xs font-semibold cursor-pointer">Tutup</button>
+                    <button onclick="openStockModalFromDetail()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer">
+                        + Tambah Stok Baru
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/assets/js/config.js"></script>
+    <script src="/assets/js/storage.js"></script>
+    <script src="/assets/js/admin.js"></script>
+</body>
+</html>

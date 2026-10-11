@@ -10,6 +10,7 @@ import (
 
 	"paymentg/internal/database"
 	"paymentg/internal/model"
+	"paymentg/internal/util"
 )
 
 type WebhookService struct {
@@ -52,6 +53,10 @@ func (w *WebhookService) Send(app *model.App, order *model.Order) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Webhook-Event", "payment.success")
+	if app.WebhookSecret != "" {
+		sig := util.HMACSign(app.WebhookSecret, body)
+		req.Header.Set("X-Webhook-Signature", "sha256="+sig)
+	}
 
 	resp, err := w.httpClient.Do(req)
 	if resp != nil && resp.Body != nil {
