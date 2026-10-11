@@ -1,6 +1,9 @@
 import os
 import sys
 import re
+import json
+import base64
+import time
 from pathlib import Path
 import httpx
 from playwright.sync_api import sync_playwright
@@ -35,6 +38,67 @@ VPS_URL = config.get("VPS_URL", "https://paymentg.syukurapi.online")
 VPS_ADMIN_KEY = config.get("VPS_ADMIN_KEY", "")
 
 
+def extract_token_from_jwt(jwt_str: str):
+    """Mendekode payload JWT cookie Shopee untuk mendapatkan B:token."""
+    try:
+        parts = jwt_str.split(".")
+        if len(parts) >= 2:
+            payload = parts[1]
+            payload += "=" * ((4 - len(payload) % 4) % 4)
+            data = json.loads(base64.urlsafe_b64decode(payload))
+            if "token" in data and str(data["token"]).startswith("B:"):
+                return str(data["token"]).strip()
+    except Exception:
+        pass
+    return None
+
+
+def extract_token_from_browser(context, page):
+    """Ekstrak token Shopee baik dari Cookie modern, injectData, maupun localStorage."""
+    # 1. Cek Cookie JWT modern (Shopee Partner v2024+)
+    try:
+        for c in context.cookies():
+            val = c.get("value", "")
+            if val.startswith("B:"):
+                return val
+            if "token" in c.get("name", "").lower():
+                jwt_tok = extract_token_from_jwt(val)
+                if jwt_tok:
+                    return jwt_tok
+    except Exception:
+        pass
+
+    # 2. Cek window.injectData (Shopee Partner legacy)
+    try:
+        tok = page.evaluate("() => (window.injectData && window.injectData.User && window.injectData.User.token) || null")
+        if tok and str(tok).startswith("B:"):
+            return str(tok).strip()
+    except Exception:
+        pass
+
+    # 3. Cek localStorage
+    try:
+        ls_tokens = page.evaluate("""() => {
+            const keys = Object.keys(localStorage);
+            for (const k of keys) {
+                const val = localStorage.getItem(k);
+                if (val && val.includes('"token":"B:')) {
+                    try {
+                        const parsed = JSON.parse(val);
+                        if (parsed.token && parsed.token.startsWith('B:')) return parsed.token;
+                    } catch(e) {}
+                }
+            }
+            return null;
+        }""")
+        if ls_tokens and str(ls_tokens).startswith("B:"):
+            return str(ls_tokens).strip()
+    except Exception:
+        pass
+
+    return None
+
+
 def update_env_token(new_token):
     """Update SHOPEE_TOKEN di .env file lokal."""
     if not env_path.exists():
@@ -56,7 +120,7 @@ def update_env_token(new_token):
         content = content.rstrip("\n") + f"\nSHOPEE_TOKEN={new_token}\n"
 
     env_path.write_text(content, encoding="utf-8")
-    print("[+] Token disimpan ke .env lokal")
+    print("[+] File .env lokal berhasil diperbarui dengan token baru!")
     return True
 
 
@@ -64,7 +128,6 @@ def sync_to_vps(token):
     """Kirim token ke VPS via HTTPS API."""
     if not VPS_ADMIN_KEY:
         print("[!] VPS_ADMIN_KEY kosong di .env, skip sync ke VPS")
-        print("    Tambahkan VPS_ADMIN_KEY=xxx di .env untuk auto-sync")
         return False
 
     print(f"[*] Sync ke VPS: {VPS_URL}...")
@@ -83,7 +146,7 @@ def sync_to_vps(token):
                 if health.status_code == 200:
                     data = health.json()
                     if data.get("success") and data.get("data", {}).get("token_valid"):
-                        print("[+] OK! VPS health: token_valid = true")
+                        print("[+] OK! VPS health: token_valid = true (Siap terima transaksi)")
                     else:
                         detail = data.get("data", {}).get("token_error", "N/A")
                         print(f"[!] WARN: VPS health: token_valid = false ({detail})")
@@ -103,7 +166,6 @@ def refresh_token(headless=True):
     os.makedirs(PROFILE_DIR, exist_ok=True)
 
     with sync_playwright() as p:
-        # Args optimasi VPS: hemat RAM + bypass deteksi bot
         args = [
             "--disable-blink-features=AutomationControlled",
             "--disable-infobars",
@@ -125,12 +187,8 @@ def refresh_token(headless=True):
 
         page = context.pages[0] if context.pages else context.new_page()
 
-        # Samarkan navigator.webdriver
-        page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-        """)
+        # Samarkan webdriver
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
 
         print(f"[*] Mengakses {SHOPEE_URL}...")
         try:
@@ -139,28 +197,16 @@ def refresh_token(headless=True):
             print(f"[-] Warning page load: {e}")
 
         token = None
-        try:
-            # Tunggu window.injectData disuntikkan oleh frontend Shopee
-            page.wait_for_function(
-                "() => window.injectData && window.injectData.User && window.injectData.User.token",
-                timeout=12000
-            )
-            token = page.evaluate("() => window.injectData.User.token")
-        except Exception:
-            if not headless:
-                print("\n[!] Sesi belum aktif. Silakan login & masukkan OTP di jendela browser...")
-                try:
-                    page.wait_for_function(
-                        "() => window.injectData && window.injectData.User && window.injectData.User.token",
-                        timeout=180000
-                    )
-                    token = page.evaluate("() => window.injectData.User.token")
-                except Exception as e:
-                    print(f"[-] Timeout menunggu login: {e}")
-            else:
-                print("[-] Token tidak ditemukan secara headless (profil mungkin belum login atau session habis).")
+        # Tunggu halaman dan cek token
+        max_attempts = 18 if not headless else 4
+        for attempt in range(max_attempts):
+            time.sleep(3 if not headless else 2)
+            token = extract_token_from_browser(context, page)
+            if token:
+                break
+            if attempt == 1 and not headless:
+                print("\n[!] Menunggu login... Silakan masukkan OTP di jendela browser jika diminta.")
 
-        # Langsung tutup browser agar RAM VPS kembali bebas 0 MB
         context.close()
 
         if token:
@@ -175,25 +221,21 @@ def refresh_token(headless=True):
                     PAYMENTG_API,
                     headers={"X-Admin-Key": ADMIN_KEY, "Content-Type": "application/json"},
                     json={"token": token},
-                    timeout=10
+                    timeout=5
                 )
                 if res.status_code == 200:
                     print("[+] Token berhasil diperbarui ke PaymentG database lokal!")
-                else:
-                    print(f"[-] Gagal update ke API lokal: {res.status_code} {res.text}")
-            except Exception as e:
-                print(f"[-] Gagal menghubungi PaymentG API lokal: {e}")
-                print("    (Server lokal mungkin tidak jalan — bukan masalah jika hanya butuh sync VPS)")
+            except Exception:
+                pass
 
             # 3. Sync token ke VPS
             sync_to_vps(token)
-
             return True
         else:
-            print("[-] Gagal memperbarui token.")
-        return False
+            print("[-] Gagal mendapatkan token ShopeePay.")
+            return False
+
 
 if __name__ == "__main__":
-    # Gunakan --setup saat pertama kali login jika ingin tampilan GUI
     is_setup = "--setup" in sys.argv
     refresh_token(headless=not is_setup)
