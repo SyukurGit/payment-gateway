@@ -214,7 +214,7 @@ async function checkHealth() {
           banner.className = "health-banner disconnected";
           if (bannerIcon) bannerIcon.innerText = "🔴";
           if (bannerTitle) bannerTitle.innerText = "Sesi ShopeePay Terputus / Perlu Login Ulang!";
-          if (bannerDesc) bannerDesc.innerText = health.token_error || "Sesi login ShopeePay telah kadaluwarsa. Klik 'Auto-Login Playwright' atau perbarui token.";
+          if (bannerDesc) bannerDesc.innerText = health.token_error || "Sesi login ShopeePay telah kadaluwarsa. Silakan perbarui token via tombol 'Info Auto-Sync' atau 'Tempel Token'.";
         }
       }
     }
@@ -537,6 +537,17 @@ async function manualUpdateToken() {
     alert("Gagal memperbarui token: " + (res.data ? res.data.error : res.error));
   }
 }
+
+function openSyncInfoModal() {
+  const modal = document.getElementById("sync-guide-modal");
+  if (modal) modal.classList.add("active");
+}
+
+function copyBookmarkletCode(btn) {
+  const code = `javascript:void(function(){var d=window.injectData||window['injectData'];var tok=null;if(d&&d.User&&d.User.token){tok=d.User.token;}else{var c=document.cookie.split(';');for(var i=0;i<c.length;i++){var ck=c[i].trim();if(ck.indexOf('__shopee_partner_website_x_token_live=')===0){try{var p=ck.split('=')[1].split('.')[1];p+='===='.slice(0,(4-p.length%4)%4);var j=JSON.parse(atob(p.replace(/-/g,'+').replace(/_/g,'/')));if(j.token)tok=j.token;}catch(e){}}}}if(tok){fetch('${CONFIG.API_URL}/api/config/token',{method:'PUT',headers:{'Content-Type':'application/json','X-Admin-Key':'${CONFIG.ADMIN_KEY}'},body:JSON.stringify({token:tok})}).then(r=>r.json()).then(j=>{alert(j.success?'✅ Token ShopeePay BERHASIL disinkronkan ke PaymentG!':'❌ Gagal: '+(j.error||JSON.stringify(j)))}).catch(e=>alert('❌ Gagal: '+e));}else{alert('Buka https://partner.shopee.co.id/ terlebih dahulu!');}}())`;
+  copyToClipboard(code, btn);
+}
+
 
 // ==========================================
 // 9. Settings Modal
