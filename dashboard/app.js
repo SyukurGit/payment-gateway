@@ -193,12 +193,23 @@ async function checkHealth() {
       // Health Session Banner
       if (banner) {
         if (isOnline) {
-          banner.className = "health-banner connected";
-          if (bannerIcon) bannerIcon.innerText = "🟢";
-          if (bannerTitle) bannerTitle.innerText = "Sesi ShopeePay Terhubung (Login Aktif)";
-          const age = health.token_age_hours ? health.token_age_hours.toFixed(1) + " jam lalu" : "Baru saja";
+          const ageHours = Number(health.token_age_hours || 0);
+          const remainingHours = Math.max(0, 24 - ageHours);
+          const isExpiringSoon = remainingHours <= 4;
+
+          banner.className = `health-banner ${isExpiringSoon ? 'warning' : 'connected'}`;
+          if (bannerIcon) bannerIcon.innerText = isExpiringSoon ? "⚠️" : "🟢";
+          if (bannerTitle) bannerTitle.innerText = isExpiringSoon 
+            ? `Sesi ShopeePay Perlu Refresh (Sisa ~${Math.max(1, Math.round(remainingHours))} Jam)`
+            : "Sesi ShopeePay Terhubung (Login Aktif)";
+
+          const ageStr = ageHours > 0 ? (ageHours < 1 ? Math.round(ageHours * 60) + " menit lalu" : ageHours.toFixed(1) + " jam lalu") : "Baru saja";
+          const remStr = remainingHours > 1 ? `~${Math.floor(remainingHours)} jam lagi` : `~${Math.round(remainingHours * 60)} menit lagi`;
           const pollTime = health.last_poll_at ? new Date(health.last_poll_at).toLocaleTimeString("id-ID") : "Aktif";
-          if (bannerDesc) bannerDesc.innerText = `Token update: ${age} • Sinkronisasi terakhir: ${pollTime} • Order Pending: ${health.pending_orders}`;
+
+          if (bannerDesc) {
+            bannerDesc.innerText = `Token update: ${ageStr} • Sisa masa aktif: ${remStr} • Sinkronisasi terakhir: ${pollTime} • Order Pending: ${health.pending_orders}`;
+          }
         } else {
           banner.className = "health-banner disconnected";
           if (bannerIcon) bannerIcon.innerText = "🔴";

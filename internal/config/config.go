@@ -17,6 +17,8 @@ type Config struct {
 	DefaultExpiryMinutes int
 	PollIntervalSeconds  int
 	DataDir              string
+	TelegramBotToken     string
+	TelegramChatID       string
 }
 
 func LoadDotEnv(path string) {
@@ -78,6 +80,9 @@ func Load() *Config {
 		dataDir = "./data"
 	}
 
+	telegramBotToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	telegramChatID := os.Getenv("TELEGRAM_CHAT_ID")
+
 	return &Config{
 		Port:                 port,
 		AdminKey:             adminKey,
@@ -86,5 +91,7 @@ func Load() *Config {
 		DefaultExpiryMinutes: expiry,
 		PollIntervalSeconds:  poll,
 		DataDir:              dataDir,
+		TelegramBotToken:     telegramBotToken,
+		TelegramChatID:       telegramChatID,
 	}
 }

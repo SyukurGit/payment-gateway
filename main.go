@@ -85,6 +85,7 @@ func main() {
 	matcher := service.NewMatcher(db, webhookService)
 	poller := service.NewPoller(db, shopeeClient, matcher, cfg.PollIntervalSeconds)
 	expiryService := service.NewExpiryService(db)
+	watchdog := service.NewWatchdog(db, cfg.TelegramBotToken, cfg.TelegramChatID)
 
 	// 7. Init handlers
 	orderHandler := handler.NewOrderHandler(db, qrisService, cfg)
@@ -103,6 +104,7 @@ func main() {
 
 	go poller.Start(ctx)
 	go expiryService.Start(ctx)
+	go watchdog.Start(ctx)
 
 	log.Println("[PaymentG] Background poller started")
 	log.Println("[PaymentG] Background expiry checker started")

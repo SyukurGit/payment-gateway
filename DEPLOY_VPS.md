@@ -101,17 +101,20 @@ QRIS_STRING=
 DEFAULT_EXPIRY_MINUTES=15
 POLL_INTERVAL_SECONDS=5
 DATA_DIR=./data
+TELEGRAM_BOT_TOKEN=        # Opsional: Token bot Telegram untuk alert sebelum sesi habis
+TELEGRAM_CHAT_ID=          # Opsional: Chat ID tujuan notifikasi
 ```
 
-### Langkah 5: Setup Playwright Headless (Auto-Refresh Token)
+### Langkah 5: Setup Playwright Headless & Early-Warning Watchdog
 ```bash
 pip3 install --break-system-packages playwright httpx || pip3 install playwright httpx
 playwright install chromium
 playwright install-deps chromium
 ```
 
-> 💡 **Input Sesi Token ShopeePay:**
-> Anda cukup menempelkan token ShopeePay aktif dari HP/PC via tombol **"✏️ Tempel Token"** di Dashboard Web (atau bookmarklet 1-klik), tanpa harus login ulang di VPS.
+> 💡 **Pemeliharaan Sesi Semi-Permanen (Hingga 1 Tahun):**
+> - **Lokal:** Jalankan `setup_silent_sync.bat` di PC Anda agar Windows Task Scheduler otomatis memperbarui token setiap 4 jam secara silent.
+> - **VPS:** Backend Go dilengkapi **Token Watchdog** otomatis yang akan memantau usia token dan mengirimkan peringatan Telegram jika sesi mendekati 20 jam tanpa update.
 
 ### Langkah 6: Pasang Systemd Service (Auto-Start 24/7)
 ```bash
