@@ -19,3 +19,5 @@ Thumbs.db
 *.swo
 .vscode/
 .idea/
+/binance/
+/usdtbep/
