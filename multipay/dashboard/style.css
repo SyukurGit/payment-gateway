@@ -1,0 +1,179 @@
+:root {
+  --bg-darker: #0b0e11;
+  --bg-card: #181a20;
+  --bg-card-hover: #21262d;
+  --border-dark: #2b313a;
+  --border-light: #363c45;
+
+  --text-main: #eaecef;
+  --text-muted: #848e9c;
+  --text-dim: #5e6673;
+
+  --gold: #f0b90b;
+  --gold-hover: #d9a507;
+  --gold-glow: rgba(240, 185, 11, 0.15);
+
+  --shopee: #ee4d2d;
+  --shopee-hover: #d73211;
+  --shopee-glow: rgba(238, 77, 45, 0.15);
+
+  --usdt: #26a17b;
+  --usdt-hover: #1e8364;
+  --usdt-glow: rgba(38, 161, 123, 0.15);
+
+  --success: #0ecb81;
+  --danger: #f6465d;
+  --warning: #f0b90b;
+  --info: #3b82f6;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--bg-darker);
+  color: var(--text-main);
+  min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-darker);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-dark);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-light);
+}
+
+/* Monospace fonts */
+.font-mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace !important;
+}
+
+/* Glassmorphism */
+.glass {
+  background: rgba(24, 26, 32, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Pulsing Dots */
+.pulse-green {
+  box-shadow: 0 0 0 0 rgba(14, 203, 129, 0.7);
+  animation: pulseGreen 2s infinite;
+}
+@keyframes pulseGreen {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 203, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(14, 203, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 203, 129, 0); }
+}
+
+.pulse-red {
+  box-shadow: 0 0 0 0 rgba(246, 70, 93, 0.7);
+  animation: pulseRed 2s infinite;
+}
+@keyframes pulseRed {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(246, 70, 93, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(246, 70, 93, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(246, 70, 93, 0); }
+}
+
+/* Toast Notification */
+#toastContainer {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 380px;
+}
+
+@media (max-width: 768px) {
+  #toastContainer {
+    bottom: 76px;
+    right: 16px;
+    left: 16px;
+    max-width: none;
+  }
+}
+
+.toast {
+  background: var(--bg-card);
+  border: 1px solid var(--border-dark);
+  color: var(--text-main);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: fadeIn 0.25s ease;
+}
+
+.toast.success { border-left: 4px solid var(--success); }
+.toast.error { border-left: 4px solid var(--danger); }
+.toast.warning { border-left: 4px solid var(--warning); }
+.toast.info { border-left: 4px solid var(--info); }
+
+/* Document Tabs & Code Preview */
+.doc-tab-btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
+  background: transparent;
+  border: 1px solid transparent;
+}
+.doc-tab-btn:hover {
+  color: #fff;
+  background: var(--bg-card-hover);
+}
+.doc-tab-btn.active {
+  color: #fff;
+  background: var(--border-dark);
+  border-color: var(--border-light);
+  font-weight: 600;
+}
+
+pre, code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace !important;
+}
+
+/* Subtle border transitions */
+.transition-border {
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+

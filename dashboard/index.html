@@ -92,26 +92,76 @@
     <!-- Tab 1: Dashboard & Health Overview -->
     <section id="tab-dashboard" class="tab-content active">
       
-      <!-- Visual Health & Session Banner -->
-      <div id="session-banner" class="health-banner connected">
-        <div class="health-info">
-          <div id="session-banner-icon" class="health-icon-large">🟢</div>
-          <div>
-            <div id="session-banner-title" class="health-title">Sesi ShopeePay Terhubung (Login Aktif)</div>
-            <div id="session-banner-desc" class="health-subtitle">Memeriksa status mutasi otomatis di background...</div>
+      <!-- 🚨 Critical Alert Banner (Muncul otomatis saat token expired/invalid) -->
+      <div id="critical-session-alert" class="critical-alert-box" style="display: none;">
+        <div class="critical-alert-icon">🚨</div>
+        <div class="critical-alert-content">
+          <div class="critical-alert-title">PERHATIAN: Sesi ShopeePay Kadaluwarsa / Sesi Putus!</div>
+          <div class="critical-alert-desc">
+            Gateway saat ini <b>TIDAK DAPAT</b> mendeteksi pembayaran masuk dari pembeli. Pembayaran mutasi otomatis terhenti sampai token sesi diperbarui.
+          </div>
+        </div>
+        <div class="critical-alert-action">
+          <button class="btn btn-danger btn-sm" onclick="openTokenImportModal()">
+            ⚡ Perbarui Token Sekarang
+          </button>
+        </div>
+      </div>
+
+      <!-- 🟢 ShopeePay Session & Token Control Hub -->
+      <div id="session-banner" class="token-hub-card connected">
+        <div class="token-hub-header">
+          <div class="token-hub-title-wrap">
+            <div id="session-banner-icon" class="token-hub-icon">🟢</div>
+            <div>
+              <div class="token-hub-title-row">
+                <h3 id="session-banner-title" class="token-hub-title">Sesi ShopeePay Merchant (Live Polling)</h3>
+                <span id="session-status-badge" class="badge-status-pill badge-online">Aktif & Normal</span>
+              </div>
+              <p id="session-banner-desc" class="token-hub-desc">Gateway otomatis memeriksa mutasi transaksi ShopeePay setiap 5 detik di background.</p>
+            </div>
+          </div>
+
+          <div class="token-hub-actions">
+            <button class="btn btn-secondary btn-sm" onclick="loadAllData()" title="Perbarui data dan cek status gateway">
+              🔄 Cek Status
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="openSyncInfoModal()" title="Panduan dan status auto-sync">
+              ⚡ Info Auto-Sync
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="openTokenImportModal()" title="Import atau perbarui token ShopeePay baru">
+              ✏️ Import Token Baru
+            </button>
           </div>
         </div>
 
-        <div class="banner-action-buttons">
-          <button class="btn btn-secondary btn-sm" onclick="loadAllData()" title="Perbarui data dan cek status gateway">
-            🔄 Cek Status
-          </button>
-          <button class="btn btn-secondary btn-sm" onclick="openSyncInfoModal()" title="Panduan dan status auto-sync">
-            ⚡ Info Auto-Sync
-          </button>
-          <button class="btn btn-primary btn-sm" onclick="manualUpdateToken()" title="Tempel token baru secara manual">
-            ✏️ Tempel Token
-          </button>
+        <!-- 4-Grid Metrik Sesi Token -->
+        <div class="token-metrics-grid">
+          <div class="token-metric-card">
+            <div class="token-metric-label">Status Autentikasi</div>
+            <div id="token-metric-status" class="token-metric-val text-success">Valid (Login Aktif)</div>
+            <div class="token-metric-sub">Koneksi API ShopeePay</div>
+          </div>
+
+          <div class="token-metric-card">
+            <div class="token-metric-label">Usia Sesi Saat Ini</div>
+            <div id="token-metric-age" class="token-metric-val">Memuat...</div>
+            <div id="token-metric-updated" class="token-metric-sub">Waktu update: -</div>
+          </div>
+
+          <div class="token-metric-card">
+            <div class="token-metric-label">Sisa Masa Aktif (TTL 24 Jam)</div>
+            <div id="token-metric-ttl" class="token-metric-val text-primary">~24 Jam lagi</div>
+            <div class="token-progress-wrap">
+              <div id="token-progress-bar" class="token-progress-bar" style="width: 100%;"></div>
+            </div>
+          </div>
+
+          <div class="token-metric-card">
+            <div class="token-metric-label">Sinkronisasi Mutasi</div>
+            <div id="token-metric-poll" class="token-metric-val text-success">Normal</div>
+            <div id="token-metric-pending" class="token-metric-sub">Order aktif: 0</div>
+          </div>
         </div>
       </div>
 
@@ -151,6 +201,93 @@
           </div>
           <div class="stat-value" id="stat-total-orders">0</div>
           <div class="stat-desc">Termasuk lunas, pending, & batal</div>
+        </div>
+      </div>
+
+      <!-- 📖 Panduan Live Hosting: Cara Import Sesi Baru Jika Token Habis -->
+      <div class="card hosting-guide-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h3 style="font-size: 15px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin: 0;">
+            <span>💡</span> Panduan: Jika Sesi Habis, Bagaimana Cara Import ke VPS Live Hosting?
+          </h3>
+          <span class="label-badge" style="background: rgba(43, 108, 176, 0.1); color: var(--primary); font-weight: 700;">Zero-Downtime</span>
+        </div>
+        
+        <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
+          Karena ShopeePay membatasi sesi login merchant sekitar <b>24 jam</b>, server VPS Anda tidak perlu direstart. Pilih salah satu cara mudah berikut untuk memperpanjang sesi:
+        </p>
+
+        <!-- Guide Tab Selector -->
+        <div class="guide-tabs-nav">
+          <button class="guide-tab-btn active" onclick="switchGuideTab('guide-tab-web', this)">
+            <span>✏️</span> Cara 1: Tempel via Web Ini (10 Detik)
+          </button>
+          <button class="guide-tab-btn" onclick="switchGuideTab('guide-tab-tampermonkey', this)">
+            <span>🧩</span> Cara 2: Userscript Browser (Otomatis)
+          </button>
+          <button class="guide-tab-btn" onclick="switchGuideTab('guide-tab-cli', this)">
+            <span>💻</span> Cara 3: Terminal / Task Scheduler PC
+          </button>
+        </div>
+
+        <!-- Guide Content 1: Web Paste -->
+        <div id="guide-tab-web" class="guide-tab-panel active">
+          <div class="steps-flow">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-text">
+                <div class="step-title">Buka Shopee Partner di Browser Anda</div>
+                <div class="step-desc">Login ke <a href="https://partner.shopee.co.id/shopeepay-portal/transactions" target="_blank" style="color: var(--primary); font-weight: 600;">partner.shopee.co.id</a> dari laptop / komputer Anda.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-text">
+                <div class="step-title">Ambil Token (B:...)</div>
+                <div class="step-desc">Salin string token yang diawali <code>B:</code> dari Cookie JWT atau cukup gunakan tombol Bookmarklet kami.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <div class="step-text">
+                <div class="step-title">Klik Tombol "Import Token Baru"</div>
+                <div class="step-desc">Tempel token di jendela modal dashboard ini, lalu klik <b>Simpan ke VPS</b>. Token langsung aktif seketika tanpa perlu restart server VPS!</div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: 14px;">
+            <button class="btn btn-primary btn-sm" onclick="openTokenImportModal()">
+              ✏️ Buka Modal Import Token Sekarang
+            </button>
+          </div>
+        </div>
+
+        <!-- Guide Content 2: Tampermonkey -->
+        <div id="guide-tab-tampermonkey" class="guide-tab-panel">
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;">
+            Pasang userscript kami di browser Chrome/Edge laptop Anda. Setiap kali Anda membuka tab Shopee Partner, script otomatis menyedot token aktif dan mengirimkannya ke server VPS Anda di latar belakang.
+          </p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="/dashboard/paymentg-shopee-sync.user.js" target="_blank" class="btn btn-primary btn-sm" style="text-decoration: none;">
+              🧩 Pasang Script Tampermonkey
+            </a>
+            <button class="btn btn-secondary btn-sm" onclick="copyBookmarkletCode(this)">
+              📋 Salin Kode Bookmarklet 1-Klik
+            </button>
+          </div>
+        </div>
+
+        <!-- Guide Content 3: CLI / Task Scheduler -->
+        <div id="guide-tab-cli" class="guide-tab-panel">
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+            Jalankan perintah ini di PowerShell atau CMD komputer lokal Anda untuk memperbarui token VPS:
+          </p>
+          <div style="position: relative; margin-bottom: 12px;">
+            <pre class="env-code-block" style="padding: 12px; margin: 0; font-size: 12px; background: #1e293b; color: #38bdf8;">python refresh_token.py --setup</pre>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted);">
+            Browser Chromium lokal akan terbuka. Silakan scan QR login di ponsel Anda. Begitu login sukses, token baru otomatis dikirimkan ke VPS dan browser menutup sendiri!
+          </p>
         </div>
       </div>
 
@@ -376,6 +513,66 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       4a. Modal: Import & Perbarui Token Sesi ShopeePay
+       ========================================== -->
+  <div id="token-import-modal" class="modal-overlay">
+    <div class="modal" style="max-width: 580px;">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span style="font-size: 20px;">✏️</span>
+          <h3 class="modal-title">Import & Perbarui Token ShopeePay</h3>
+        </div>
+        <button class="modal-close" onclick="closeModal('token-import-modal')">&times;</button>
+      </div>
+
+      <form onsubmit="submitTokenImport(event)">
+        <div style="padding: 16px 0; display: flex; flex-direction: column; gap: 14px;">
+          <div class="alert-success-box" style="margin-bottom: 0; background: rgba(43, 108, 176, 0.08); border: 1px solid rgba(43, 108, 176, 0.25); color: #1e3a8a;">
+            <span style="font-size: 20px;">⚡</span>
+            <div style="font-size: 12.5px; line-height: 1.45;">
+              <b>Hot-Reload ke Live Hosting:</b> Token baru langsung disimpan dan aktif seketika tanpa perlu merestart server PaymentG di VPS!
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label flex-between">
+              <span>Token ShopeePay Partner *</span>
+              <span id="token-char-count" class="label-badge">0 Karakter</span>
+            </label>
+            <textarea id="token-import-field" class="form-input font-mono token-textarea" rows="4" 
+              placeholder="Tempel token ShopeePay di sini (wajib diawali B:...)" required oninput="validateTokenInput(this)"></textarea>
+            <div class="flex-between" style="margin-top: 6px; font-size: 11.5px;">
+              <span id="token-validation-msg" class="text-muted">Format: Diawali dengan <code>B:</code> (~300-800 karakter)</span>
+              <button type="button" class="btn-text-link" onclick="pasteFromClipboard()">📋 Paste dari Clipboard</button>
+            </div>
+          </div>
+
+          <div class="tips-accordion-box">
+            <div class="tips-accordion-head" onclick="toggleTokenTips()">
+              <span>💡 Di mana mengambil token ShopeePay?</span>
+              <span id="token-tips-arrow">▼</span>
+            </div>
+            <div id="token-tips-content" class="tips-accordion-body" style="display: none;">
+              <ol style="margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; color: var(--text-muted);">
+                <li>Buka portal <a href="https://partner.shopee.co.id/shopeepay-portal/transactions" target="_blank" style="color: var(--primary); font-weight: 600;">partner.shopee.co.id</a> di browser Anda dan pastikan login.</li>
+                <li>Buka Developer Tools (tekan <code>F12</code>) &rarr; tab <b>Application</b> &rarr; <b>Cookies</b> &rarr; cari cookie dengan nilai berawalan <code>B:</code>, lalu salin seluruhnya.</li>
+                <li><i>Atau lebih cepat:</i> Gunakan ekstensi <b>Tampermonkey</b> dengan script auto-sync kami yang otomatis mengirimkannya.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer flex-between">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('token-import-modal')">Batal</button>
+          <button type="submit" id="btn-save-token" class="btn btn-primary">
+            🚀 Simpan & Aktifkan di VPS
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 

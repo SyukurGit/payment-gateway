@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dokumentasi API: ShopeePay Dynamic QRIS — Multipay Gateway</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body class="bg-darker text-slate-200 min-h-screen p-4 md:p-8 font-sans">
+  <div class="max-w-4xl mx-auto space-y-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-borderDark pb-6">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 rounded-xl bg-shopee/15 text-shopee border border-shopee/30 flex items-center justify-center text-2xl font-bold">
+          📱
+        </div>
+        <div>
+          <h1 class="text-2xl font-extrabold text-white">ShopeePay Dynamic QRIS API</h1>
+          <p class="text-xs text-muted">Integrasi tagihan QRIS dinamis berbasis EMVCo TLV dengan kode unik</p>
+        </div>
+      </div>
+      <a href="../index.html" class="text-xs bg-card hover:bg-cardHover border border-borderDark px-4 py-2 rounded-xl text-white transition">
+        ← Kembali ke Dashboard
+      </a>
+    </div>
+
+    <!-- Quick Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-card border border-borderDark rounded-xl p-4">
+        <span class="text-xs text-muted block mb-1">Mata Uang</span>
+        <span class="font-bold text-white text-base">IDR (Rupiah)</span>
+      </div>
+      <div class="bg-card border border-borderDark rounded-xl p-4">
+        <span class="text-xs text-muted block mb-1">Metode Alokasi</span>
+        <span class="font-bold text-shopee text-base">Kode Unik 1 - 999</span>
+      </div>
+      <div class="bg-card border border-borderDark rounded-xl p-4">
+        <span class="text-xs text-muted block mb-1">Kompatibilitas QRIS</span>
+        <span class="font-bold text-success text-base">BCA, Mandiri, BRI, GoPay, OVO, ShopeePay, DANA</span>
+      </div>
+    </div>
+
+    <!-- 1. Authentication -->
+    <section class="bg-card border border-borderDark rounded-2xl p-6 space-y-4">
+      <h2 class="text-lg font-bold text-white flex items-center gap-2">
+        <span>🔑</span> 1. Autentikasi API Key
+      </h2>
+      <p class="text-xs text-muted">Kirimkan header <code class="text-yellow-400 bg-darker px-1.5 py-0.5 rounded">X-API-Key</code> pada setiap panggilan API.</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+        <div class="p-3 bg-darker border border-borderDark rounded-xl">
+          <span class="text-success font-bold block mb-1">Mode Live (Produksi):</span>
+          <span class="text-slate-300">X-API-Key: ak_live_xxxxxx</span>
+        </div>
+        <div class="p-3 bg-darker border border-borderDark rounded-xl">
+          <span class="text-yellow-400 font-bold block mb-1">Mode Sandbox (Testing):</span>
+          <span class="text-slate-300">X-API-Key: ak_test_xxxxxx</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Endpoints Comparison -->
+    <section class="bg-card border border-borderDark rounded-2xl p-6 space-y-4">
+      <h2 class="text-lg font-bold text-white flex items-center gap-2">
+        <span>🌐</span> 2. Ringkasan Endpoint
+      </h2>
+      <div class="overflow-x-auto text-xs">
+        <table class="w-full text-left font-mono">
+          <thead class="bg-darker text-muted uppercase border-b border-borderDark">
+            <tr>
+              <th class="p-3">Method</th>
+              <th class="p-3">Live Path</th>
+              <th class="p-3">Sandbox Path</th>
+              <th class="p-3">Fungsi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-borderDark/60">
+            <tr>
+              <td class="p-3 text-emerald-400 font-bold">POST</td>
+              <td class="p-3 text-white">/qris/api/orders</td>
+              <td class="p-3 text-yellow-400">/qris/api/sandbox/orders</td>
+              <td class="p-3 text-muted">Buat invoice QRIS dinamis</td>
+            </tr>
+            <tr>
+              <td class="p-3 text-blue-400 font-bold">GET</td>
+              <td class="p-3 text-white">/qris/api/orders/:id</td>
+              <td class="p-3 text-yellow-400">/qris/api/sandbox/orders/:id</td>
+              <td class="p-3 text-muted">Cek status invoice</td>
+            </tr>
+            <tr>
+              <td class="p-3 text-blue-400 font-bold">GET</td>
+              <td class="p-3 text-white">/qris/api/orders/:id/qr.png</td>
+              <td class="p-3 text-yellow-400">/qris/api/sandbox/orders/:id/qr.png</td>
+              <td class="p-3 text-muted">Render gambar QRIS PNG</td>
+            </tr>
+            <tr>
+              <td class="p-3 text-emerald-400 font-bold">POST</td>
+              <td class="p-3 text-muted">-</td>
+              <td class="p-3 text-yellow-400">/qris/api/sandbox/orders/:id/pay</td>
+              <td class="p-3 text-muted">1-Klik Simulasi Lunas Sandbox</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3. Create Order Example -->
+    <section class="bg-card border border-borderDark rounded-2xl p-6 space-y-4">
+      <h2 class="text-lg font-bold text-white flex items-center gap-2">
+        <span>⚡</span> 3. Membuat Tagihan QRIS Dinamis
+      </h2>
+      <p class="text-xs text-muted">Membuat tagihan baru dengan kode unik otomatis yang mencegah bentrok antar pembeli.</p>
+
+      <div class="space-y-2">
+        <span class="text-xs font-semibold text-muted block">Request cURL:</span>
+        <pre class="bg-darker border border-borderDark p-4 rounded-xl text-xs text-yellow-300 font-mono overflow-x-auto">curl -X POST https://multipay.domain.com/qris/api/orders \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ak_live_xxxxxx" \
+  -d '{
+    "reference_id": "INV-2026-001",
+    "amount": 50000,
+    "expiry_minutes": 15
+  }'</pre>
+      </div>
+
+      <div class="space-y-2">
+        <span class="text-xs font-semibold text-muted block">Response (JSON):</span>
+        <pre class="bg-darker border border-borderDark p-4 rounded-xl text-xs text-emerald-400 font-mono overflow-x-auto">{
+  "success": true,
+  "order": {
+    "id": "ord_qris_ab12cd34",
+    "channel": "qris",
+    "reference_id": "INV-2026-001",
+    "currency": "IDR",
+    "original_amount": 50000,
+    "unique_code": 142,
+    "total_amount": 50142,
+    "total_amount_str": "50142",
+    "status": "PENDING",
+    "qr_url": "https://multipay.domain.com/qris/api/orders/ord_qris_ab12cd34/qr.png",
+    "remaining_seconds": 900
+  }
+}</pre>
+      </div>
+    </section>
+
+    <!-- 4. Webhook Notification -->
+    <section class="bg-card border border-borderDark rounded-2xl p-6 space-y-4">
+      <h2 class="text-lg font-bold text-white flex items-center gap-2">
+        <span>🔔</span> 4. Webhook Notifikasi Pembayaran
+      </h2>
+      <p class="text-xs text-muted">Ketika mutasi ShopeePay berhasil diverifikasi, gateway akan memanggil URL webhook toko Anda menggunakan POST dengan header <code class="text-yellow-400 bg-darker px-1 rounded">X-Multipay-Signature</code>.</p>
+
+      <div class="space-y-2">
+        <span class="text-xs font-semibold text-muted block">Webhook Payload:</span>
+        <pre class="bg-darker border border-borderDark p-4 rounded-xl text-xs text-slate-300 font-mono overflow-x-auto">{
+  "event": "payment.success",
+  "is_sandbox": false,
+  "channel": "qris",
+  "order_id": "ord_qris_ab12cd34",
+  "reference_id": "INV-2026-001",
+  "currency": "IDR",
+  "original_amount": 50000,
+  "unique_code": 142,
+  "total_amount": 50142,
+  "total_amount_str": "50142",
+  "paid_at": 1773998123000,
+  "tx_id": "shopee_tx_998877",
+  "timestamp": 1773998124000
+}</pre>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

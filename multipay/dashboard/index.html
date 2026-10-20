@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multipay Gateway — QRIS + Binance Pay + USDT BEP-20</title>
+  <!-- Favicon Vector -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23181a20'/><circle cx='10' cy='16' r='6' fill='%23ee4d2d'/><circle cx='16' cy='16' r='6' fill='%23f0b90b'/><circle cx='22' cy='16' r='6' fill='%2326a17b'/></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            darker: '#0b0e11',
+            card: '#181a20',
+            cardHover: '#21262d',
+            borderDark: '#2b313a',
+            gold: '#f0b90b',
+            shopee: '#ee4d2d',
+            usdt: '#26a17b',
+            success: '#0ecb81',
+            danger: '#f6465d',
+            muted: '#848e9c',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-darker text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- ======================================================== -->
+  <!-- 1. PIN Lockscreen Modal                                  -->
+  <!-- ======================================================== -->
+  <div id="pinModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-card border border-borderDark rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+      <div class="flex items-center space-x-3 mb-6">
+        <div class="w-12 h-12 rounded-xl bg-gold/15 flex items-center justify-center text-2xl">
+          🏛️
+        </div>
+        <div>
+          <h2 class="text-xl font-bold text-white tracking-wide">Multipay Security Gate</h2>
+          <p class="text-xs text-muted">Satu pintu PIN untuk mengakses seluruh payment gateway</p>
+        </div>
+      </div>
+      <form id="pinForm" onsubmit="handlePinLogin(event)">
+        <div class="mb-4">
+          <label class="block text-xs uppercase tracking-wider text-muted mb-2 font-semibold">Admin PIN</label>
+          <input type="password" id="pinInput" placeholder="••••" maxlength="8" required autofocus
+                 class="w-full bg-darker border border-borderDark rounded-xl px-4 py-3 text-white text-center text-3xl tracking-widest focus:outline-none focus:border-gold transition">
+        </div>
+        <div id="pinError" class="hidden mb-4 p-3 rounded-xl bg-red-950/70 border border-red-800 text-red-300 text-xs text-center"></div>
+        <button type="submit" id="pinSubmitBtn" class="w-full bg-gold hover:bg-yellow-500 text-black font-bold py-3 px-4 rounded-xl transition duration-150 shadow-lg">
+          Buka Master Dashboard
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- 2. Top Header Bar                                        -->
+  <!-- ======================================================== -->
+  <header class="bg-card border-b border-borderDark px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-shopee via-gold to-usdt flex items-center justify-center font-black text-black text-base shadow">
+        M
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base font-bold text-white tracking-tight">MULTIPAY GATEWAY</h1>
+          <span class="text-[10px] bg-borderDark px-2 py-0.5 rounded text-muted font-mono font-medium">6 Jalur Terisolasi</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-muted">
+          <span id="headerUptime" class="flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-success inline-block pulse-green"></span>
+            Online
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center/Right Controls -->
+    <div class="flex items-center space-x-3">
+      <!-- Active Merchant Store Selector -->
+      <div class="hidden sm:flex items-center gap-2 bg-darker border border-borderDark px-3 py-1.5 rounded-lg text-xs">
+        <span class="text-muted">Toko Aktif:</span>
+        <select id="headerStoreSelector" onchange="handleSelectStore(this.value)" class="bg-transparent text-white font-semibold focus:outline-none cursor-pointer">
+          <option value="">Memuat toko...</option>
+        </select>
+      </div>
+
+      <!-- Auto Refresh Toggle -->
+      <label class="hidden lg:flex items-center cursor-pointer text-xs text-muted gap-2 bg-darker border border-borderDark px-3 py-1.5 rounded-lg">
+        <input type="checkbox" id="autoRefreshCheck" checked onchange="toggleAutoRefresh(this.checked)" class="rounded bg-card border-borderDark text-gold focus:ring-0">
+        <span>Auto-Sync 5s</span>
+      </label>
+
+      <!-- Logout Button -->
+      <button onclick="handleLogout()" class="text-xs bg-darker hover:bg-cardHover border border-borderDark px-3 py-1.5 rounded-lg text-muted hover:text-white transition flex items-center gap-1.5">
+        <span>🔒</span>
+        <span>Kunci</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ======================================================== -->
+  <!-- 3. Layout: Sidebar + Main Content Container              -->
+  <!-- ======================================================== -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- 🌟 Left Sidebar -->
+    <aside class="w-64 bg-card border-r border-borderDark flex flex-col justify-between shrink-0 hidden md:flex">
+      <div class="p-3 space-y-1 overflow-y-auto">
+
+        <!-- 1. Navigation: Overview -->
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-muted px-3 py-1">Dashboard</div>
+        <button onclick="switchTab('overview')" id="nav-overview" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-white bg-borderDark/60 transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">📊</span>
+            <span>Ringkasan Global</span>
+          </div>
+        </button>
+
+        <!-- 2. Section: Live Production (Ori) -->
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400 px-3 pt-4 pb-1 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block pulse-green"></span>
+            Live Production (Ori)
+          </span>
+          <span class="text-[10px] text-muted font-mono font-normal">ak_live_</span>
+        </div>
+        <button onclick="switchTab('qris-live')" id="nav-qris-live" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-cardHover transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">📱</span>
+            <span>QRIS ShopeePay</span>
+          </div>
+          <span id="badgeShopeeToken" class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-borderDark text-muted">-</span>
+        </button>
+        <button onclick="switchTab('binance-live')" id="nav-binance-live" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-cardHover transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🟡</span>
+            <span>Binance Pay SAPI</span>
+          </div>
+          <span id="badgeBinanceStatus" class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-borderDark text-muted">USDT</span>
+        </button>
+        <button onclick="switchTab('usdt-live')" id="nav-usdt-live" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-cardHover transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🟢</span>
+            <span>USDT BEP-20</span>
+          </div>
+          <span id="badgeUSDTBlock" class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-borderDark text-muted">BSC</span>
+        </button>
+
+        <!-- 3. Section: Sandbox Testing -->
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-yellow-400 px-3 pt-4 pb-1 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>
+            Sandbox Testing
+          </span>
+          <span class="text-[10px] text-muted font-mono font-normal">ak_test_</span>
+        </div>
+        <button onclick="switchTab('qris-sandbox')" id="nav-qris-sandbox" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-cardHover transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🧪</span>
+            <span>QRIS Sandbox</span>
+          </div>
+          <span class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-yellow-950/80 text-yellow-400 border border-yellow-800/60">TEST</span>
+        </button>
+        <button onclick="switchTab('binance-sandbox')" id="nav-binance-sandbox" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-cardHover transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🧪</span>
+            <span>Binance Sandbox</span>
+          </div>
+          <span class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-yellow-950/80 text-yellow-400 border border-yellow-800/60">TEST</span>
+        </button>
+        <button onclick="switchTab('usdt-sandbox')" id="nav-usdt-sandbox" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-cardHover transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🧪</span>
+            <span>USDT Sandbox</span>
+          </div>
+          <span class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-yellow-950/80 text-yellow-400 border border-yellow-800/60">TEST</span>
+        </button>
+
+        <!-- 4. Section: Merchant & System Settings -->
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-muted px-3 pt-4 pb-1">Toko & Sistem</div>
+        <button onclick="switchTab('apps')" id="nav-apps" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-cardHover transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">🔑</span>
+            <span>Toko & API Keys</span>
+          </div>
+          <span id="badgeAppsCount" class="text-[10px] px-1.5 py-0.5 rounded font-mono bg-borderDark text-muted">0</span>
+        </button>
+        <button onclick="switchTab('security')" id="nav-security" class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-muted hover:text-white hover:bg-cardHover transition">
+          <div class="flex items-center gap-2.5">
+            <span class="text-base">⚙️</span>
+            <span>Keamanan (PIN)</span>
+          </div>
+        </button>
+
+      </div>
+
+      <!-- Sidebar Footer -->
+      <div class="p-3 border-t border-borderDark/60 text-xs text-muted space-y-1">
+        <div class="flex justify-between items-center text-[11px]">
+          <span>Database Engine:</span>
+          <span class="text-success font-semibold">SQLite WAL (Zero-CGO)</span>
+        </div>
+        <div class="flex justify-between items-center text-[11px]">
+          <span>Dual Storage:</span>
+          <span class="font-mono text-slate-300">Live & Sandbox DB</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 📱 Mobile Navigation Bar (Bottom) -->
+    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-borderDark z-20 flex justify-around p-2 text-xs">
+      <button id="mob-nav-overview" onclick="switchTab('overview')" class="mob-nav-btn flex flex-col items-center py-1 text-gold">
+        <span>📊</span><span>Overview</span>
+      </button>
+      <button id="mob-nav-qris-live" onclick="switchTab('qris-live')" class="mob-nav-btn flex flex-col items-center py-1 text-muted">
+        <span>📱</span><span>QRIS</span>
+      </button>
+      <button id="mob-nav-binance-live" onclick="switchTab('binance-live')" class="mob-nav-btn flex flex-col items-center py-1 text-muted">
+        <span>🟡</span><span>Binance</span>
+      </button>
+      <button id="mob-nav-usdt-live" onclick="switchTab('usdt-live')" class="mob-nav-btn flex flex-col items-center py-1 text-muted">
+        <span>🟢</span><span>USDT</span>
+      </button>
+      <button onclick="toggleMobileMenuDrawer()" class="flex flex-col items-center py-1 text-muted hover:text-white">
+        <span>☰</span><span>Menu</span>
+      </button>
+    </div>
+
+    <!-- 🚀 Main Workspace Area -->
+    <main class="flex-1 p-4 md:p-6 overflow-y-auto pb-20 md:pb-6">
+
+      <!-- ======================================================== -->
+      <!-- VIEW 1: OVERVIEW (RINGKASAN GLOBAL)                      -->
+      <!-- ======================================================== -->
+      <div id="view-overview" class="tab-view space-y-6 animate-fade">
+        <!-- Top Mode Switcher Bar -->
+        <div class="bg-card border border-borderDark rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span>📊</span> Ringkasan Global Transaksi Multipay
+            </h2>
+            <p class="text-xs text-muted">Pantau omset dan status 3 payment engine secara terpisah antara Live dan Sandbox.</p>
+          </div>
+          <!-- Mode Toggle Pill -->
+          <div class="flex items-center bg-darker p-1 rounded-xl border border-borderDark">
+            <button id="overviewModeLive" onclick="setOverviewMode(false)" class="px-4 py-1.5 rounded-lg text-xs font-bold transition text-black bg-emerald-400 shadow">
+              🟢 Live (Produksi)
+            </button>
+            <button id="overviewModeSandbox" onclick="setOverviewMode(true)" class="px-4 py-1.5 rounded-lg text-xs font-semibold text-muted transition hover:text-white">
+              🧪 Sandbox (Uji Coba)
+            </button>
+          </div>
+        </div>
+
+        <!-- Metrics Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Gross IDR QRIS -->
+          <div class="bg-card border border-borderDark rounded-2xl p-4 shadow">
+            <div class="flex justify-between items-center text-xs text-muted mb-2">
+              <span id="labelQRISVolume">OMSET SHOPEEPAY QRIS</span>
+              <span class="text-shopee text-lg">📱</span>
+            </div>
+            <div id="metricQRISVolume" class="text-2xl font-black text-white font-mono">Rp 0</div>
+            <div class="text-[11px] text-muted mt-2 flex justify-between">
+              <span>Lunas: <b id="metricQRISPaid" class="text-success font-mono">0</b></span>
+              <span>Pending: <b id="metricQRISPending" class="text-yellow-400 font-mono">0</b></span>
+            </div>
+          </div>
+
+          <!-- Gross USDT Binance -->
+          <div class="bg-card border border-borderDark rounded-2xl p-4 shadow">
+            <div class="flex justify-between items-center text-xs text-muted mb-2">
+              <span id="labelBinanceVolume">OMSET BINANCE PAY</span>
+              <span class="text-gold text-lg">🟡</span>
+            </div>
+            <div id="metricBinanceVolume" class="text-2xl font-black text-white font-mono">0.000 USDT</div>
+            <div class="text-[11px] text-muted mt-2 flex justify-between">
+              <span>Lunas: <b id="metricBinancePaid" class="text-success font-mono">0</b></span>
+              <span>Pending: <b id="metricBinancePending" class="text-yellow-400 font-mono">0</b></span>
+            </div>
+          </div>
+
+          <!-- Gross USDT BEP-20 -->
+          <div class="bg-card border border-borderDark rounded-2xl p-4 shadow">
+            <div class="flex justify-between items-center text-xs text-muted mb-2">
+              <span id="labelUSDTVolume">OMSET USDT BEP-20</span>
+              <span class="text-usdt text-lg">🟢</span>
+            </div>
+            <div id="metricUSDTVolume" class="text-2xl font-black text-white font-mono">0.000 USDT</div>
+            <div class="text-[11px] text-muted mt-2 flex justify-between">
+              <span>Lunas: <b id="metricUSDTPaid" class="text-success font-mono">0</b></span>
+              <span>Pending: <b id="metricUSDTPending" class="text-yellow-400 font-mono">0</b></span>
+            </div>
+          </div>
+
+          <!-- Total Global Transactions -->
+          <div class="bg-card border border-borderDark rounded-2xl p-4 shadow">
+            <div class="flex justify-between items-center text-xs text-muted mb-2">
+              <span>STATUS ENGINE</span>
+              <span class="text-info text-lg">⚡</span>
+            </div>
+            <div class="space-y-1.5 text-xs mt-1">
+              <div class="flex justify-between items-center">
+                <span>QRIS Shopee:</span>
+                <span id="overviewShopeeStatus" class="font-bold text-muted">-</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span>Binance SAPI:</span>
+                <span id="overviewBinanceStatus" class="font-bold text-muted">-</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span>USDT On-Chain:</span>
+                <span id="overviewUSDTStatus" class="font-bold text-muted">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Global Orders Table -->
+        <div class="bg-card border border-borderDark rounded-2xl p-5 shadow">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+            <div>
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span>📜</span> Riwayat Transaksi Global (<span id="overviewTableModeLabel" class="text-emerald-400">Mode Live</span>)
+              </h3>
+              <p class="text-xs text-muted">Daftar transaksi masuk gabungan seluruh channel</p>
+            </div>
+            <!-- Filter Channel & Status -->
+            <div class="flex items-center gap-2">
+              <select id="filterOverviewChannel" onchange="loadOverviewOrders()" class="bg-darker border border-borderDark text-xs rounded-xl px-3 py-2 text-white">
+                <option value="">Semua Channel</option>
+                <option value="qris">ShopeePay QRIS</option>
+                <option value="binance">Binance Pay</option>
+                <option value="usdt">USDT BEP-20</option>
+              </select>
+              <select id="filterOverviewStatus" onchange="loadOverviewOrders()" class="bg-darker border border-borderDark text-xs rounded-xl px-3 py-2 text-white">
+                <option value="">Semua Status</option>
+                <option value="PENDING">PENDING</option>
+                <option value="PAID">PAID</option>
+                <option value="EXPIRED">EXPIRED</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-darker text-muted uppercase tracking-wider text-[11px] border-b border-borderDark">
+                <tr>
+                  <th class="p-3">Waktu</th>
+                  <th class="p-3">Order ID / Ref</th>
+                  <th class="p-3">Channel</th>
+                  <th class="p-3">Nominal + Kode Unik</th>
+                  <th class="p-3">Status</th>
+                  <th class="p-3">TX Info / Hash</th>
+                </tr>
+              </thead>
+              <tbody id="overviewOrdersTbody" class="divide-y divide-borderDark/60 font-mono">
+                <tr><td colspan="6" class="p-4 text-center text-muted">Memuat data transaksi...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- DYNAMIC CONTAINER FOR THE 6 CHANNEL VIEWS                -->
+      <!-- Mounted programmatically by app.js with uniform UX layout -->
+      <!-- ======================================================== -->
+      <div id="channelViewsContainer"></div>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: MERCHANT APPS & KEYS (TOKO & API KEYS)            -->
+      <!-- ======================================================== -->
+      <div id="view-apps" class="tab-view space-y-6 hidden animate-fade">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>🔑</span> Manajemen Toko Merchant & API Keys
+            </h3>
+            <p class="text-xs text-muted">Setiap toko memiliki kunci Live (<code class="text-emerald-400">ak_live_</code>) dan Sandbox (<code class="text-yellow-400">ak_test_</code>) yang terisolasi.</p>
+          </div>
+          <button onclick="openCreateAppModal()" class="text-xs bg-gold hover:bg-yellow-500 text-black font-bold px-4 py-2.5 rounded-xl transition shadow flex items-center gap-1.5">
+            <span>➕</span>
+            <span>Tambah Toko Baru</span>
+          </button>
+        </div>
+
+        <div id="appsListContainer" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: SECURITY SETTINGS (KEAMANAN PIN)                   -->
+      <!-- ======================================================== -->
+      <div id="view-security" class="tab-view space-y-6 hidden animate-fade">
+        <div class="bg-card border border-borderDark rounded-2xl p-6 max-w-lg shadow">
+          <div class="flex items-center space-x-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-red-950/40 border border-red-800 text-red-400 flex items-center justify-center text-xl">
+              🛡️
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Keamanan Sistem Multipay</h3>
+              <p class="text-xs text-muted">Ubah Admin PIN login dan Master Key API</p>
+            </div>
+          </div>
+          <form onsubmit="handleSaveSecurityConfig(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-muted mb-1">Admin PIN Baru (6 Digit Angka)</label>
+              <input type="password" id="secAdminPINInput" placeholder="Masukkan 6 digit PIN..." required
+                     class="w-full bg-darker border border-borderDark rounded-xl px-3 py-2.5 text-xs text-white font-mono focus:border-gold">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-muted mb-1">Admin Secret Key (X-Admin-Key)</label>
+              <div class="relative">
+                <input type="password" id="secAdminKeyInput" placeholder="adm_secret_..." required
+                       class="w-full bg-darker border border-borderDark rounded-xl px-3 py-2.5 text-xs text-white font-mono focus:border-gold pr-10">
+                <button type="button" onclick="toggleAdminKeyVisibility()" class="absolute right-3 top-2.5 text-muted hover:text-white text-xs" title="Tampilkan/Sembunyikan Secret Key">
+                  👁️
+                </button>
+              </div>
+            </div>
+            <button type="submit" class="w-full bg-gold hover:bg-yellow-500 text-black font-bold py-2.5 px-4 rounded-xl text-xs transition shadow">
+              💾 Simpan Perubahan Keamanan
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- 4. Modals                                                -->
+  <!-- ======================================================== -->
+  <!-- Create App Modal -->
+  <div id="createAppModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-card border border-borderDark rounded-2xl w-full max-w-md p-6 shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-base font-bold text-white">Tambah Toko Merchant Baru</h3>
+        <button onclick="closeCreateAppModal()" class="text-muted hover:text-white">✕</button>
+      </div>
+      <form onsubmit="handleCreateApp(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-muted mb-1">Nama Toko / Aplikasi</label>
+          <input type="text" id="newAppName" placeholder="Contoh: Toko Online Saya" required
+                 class="w-full bg-darker border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:border-gold">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-muted mb-1">Webhook URL Notifikasi</label>
+          <input type="url" id="newAppWebhook" placeholder="https://toko.com/api/payment/webhook" required
+                 class="w-full bg-darker border border-borderDark rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-gold">
+        </div>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="closeCreateAppModal()" class="px-4 py-2 rounded-xl text-xs text-muted hover:text-white">Batal</button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs bg-gold hover:bg-yellow-500 text-black font-bold">Buat Toko</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Resolve Unmatched Modal -->
+  <div id="resolveModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-card border border-borderDark rounded-2xl w-full max-w-md p-6 shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🔗</span> Pasangkan Mutasi CEX ke Order
+        </h3>
+        <button onclick="closeResolveModal()" class="text-muted hover:text-white">✕</button>
+      </div>
+      <form onsubmit="handleResolveUnmatched(event)" class="space-y-3">
+        <input type="hidden" id="resolveUnmatchedID">
+        <div>
+          <label class="block text-[11px] font-semibold text-muted mb-1">ID Mutasi Tak Dikenal</label>
+          <input type="text" id="resolveUnmatchedDisplay" readonly
+                 class="w-full bg-darker border border-borderDark rounded-xl px-3 py-2 text-xs text-muted font-mono">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-muted mb-1">Target Order ID (Invoice yang ingin dilunasi)</label>
+          <input type="text" id="resolveOrderID" placeholder="ord_usdt_..." required
+                 class="w-full bg-darker border border-borderDark rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-gold">
+        </div>
+        <p class="text-[11px] text-muted">Begitu dipasangkan, order akan otomatis ditandai <b>PAID</b> dan webhook terkirim ke toko merchant.</p>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="closeResolveModal()" class="px-4 py-2 rounded-xl text-xs text-muted hover:text-white">Batal</button>
+          <button type="submit" class="px-4 py-2 rounded-xl text-xs bg-success hover:bg-emerald-600 text-black font-bold">Pasangkan & Lunaskan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Mobile Menu Drawer (Complete Navigation) -->
+  <div id="mobileMenuDrawer" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex flex-col justify-end transition-opacity">
+    <div class="bg-card border-t border-borderDark rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-center pb-2 border-b border-borderDark">
+        <h3 class="font-bold text-white text-sm">Semua Menu Multipay Gateway</h3>
+        <button onclick="toggleMobileMenuDrawer()" class="text-muted hover:text-white text-lg">✕</button>
+      </div>
+
+      <div class="space-y-1">
+        <div class="text-[10px] uppercase font-bold text-muted px-2 py-1">Ringkasan Utama</div>
+        <button onclick="switchTab('overview'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2.5 rounded-xl text-xs hover:bg-cardHover text-white flex items-center gap-2.5">
+          <span>📊</span> <span>Overview & Ringkasan Global</span>
+        </button>
+      </div>
+
+      <div class="space-y-1">
+        <div class="text-[10px] uppercase font-bold text-emerald-400 px-2 py-1 flex items-center justify-between">
+          <span>Jalur Live (Produksi)</span>
+          <span class="text-[9px] bg-emerald-950 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-800">3 JALUR</span>
+        </div>
+        <button onclick="switchTab('qris-live'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-cardHover text-white flex items-center justify-between">
+          <span class="flex items-center gap-2"><span>📱</span> ShopeePay QRIS Dinamis</span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400">LIVE</span>
+        </button>
+        <button onclick="switchTab('binance-live'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-cardHover text-white flex items-center justify-between">
+          <span class="flex items-center gap-2"><span>🟡</span> Binance Pay SAPI</span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400">LIVE</span>
+        </button>
+        <button onclick="switchTab('usdt-live'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-cardHover text-white flex items-center justify-between">
+          <span class="flex items-center gap-2"><span>🟢</span> USDT On-Chain BEP-20</span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400">LIVE</span>
+        </button>
+      </div>
+
+      <div class="space-y-1">
+        <div class="text-[10px] uppercase font-bold text-yellow-400 px-2 py-1 flex items-center justify-between">
+          <span>Jalur Sandbox (Uji Coba)</span>
+          <span class="text-[9px] bg-yellow-950 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-800">3 JALUR</span>
+        </div>
+        <button onclick="switchTab('qris-sandbox'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-cardHover text-white flex items-center justify-between">
+          <span class="flex items-center gap-2"><span>📱</span> QRIS Sandbox</span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-yellow-950 text-yellow-400">SANDBOX</span>
+        </button>
+        <button onclick="switchTab('binance-sandbox'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-cardHover text-white flex items-center justify-between">
+          <span class="flex items-center gap-2"><span>🟡</span> Binance Sandbox</span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-yellow-950 text-yellow-400">SANDBOX</span>
+        </button>
+        <button onclick="switchTab('usdt-sandbox'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-cardHover text-white flex items-center justify-between">
+          <span class="flex items-center gap-2"><span>🟢</span> USDT Sandbox</span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-yellow-950 text-yellow-400">SANDBOX</span>
+        </button>
+      </div>
+
+      <div class="space-y-1 border-t border-borderDark pt-2">
+        <div class="text-[10px] uppercase font-bold text-muted px-2 py-1">Manajemen & Sistem</div>
+        <button onclick="switchTab('apps'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-cardHover text-white flex items-center gap-2">
+          <span>🔑</span> Toko & API Keys
+        </button>
+        <button onclick="switchTab('security'); toggleMobileMenuDrawer();" class="w-full text-left px-3 py-2 rounded-xl text-xs hover:bg-cardHover text-white flex items-center gap-2">
+          <span>🛡️</span> Keamanan & PIN
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
