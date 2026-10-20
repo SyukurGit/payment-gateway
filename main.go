@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -89,7 +90,7 @@ func main() {
 
 	// 7. Init handlers
 	orderHandler := handler.NewOrderHandler(db, qrisService, cfg)
-	adminHandler := handler.NewAdminHandler(db, cfg)
+	adminHandler := handler.NewAdminHandler(db, cfg, shopeeClient, poller)
 	healthHandler := handler.NewHealthHandler(db, poller)
 
 	var sandboxHandler *handler.SandboxHandler
@@ -114,6 +115,34 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(corsMiddleware()) // Simple CORS
+
+	// Middleware to intercept dynamic userscript and inject live host & admin key
+	r.Use(func(c *gin.Context) {
+		if c.Request.URL.Path == "/dashboard/paymentg-shopee-sync.user.js" {
+			host := c.Request.Host
+			scheme := "https"
+			if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+				scheme = proto
+			} else if c.Request.TLS == nil && !strings.Contains(host, "syukurapi") {
+				scheme = "http"
+			}
+			vpsURL := fmt.Sprintf("%s://%s", scheme, host)
+			scriptBytes, err := os.ReadFile("./dashboard/paymentg-shopee-sync.user.js")
+			if err != nil {
+				c.String(http.StatusNotFound, "Script not found")
+				c.Abort()
+				return
+			}
+			script := string(scriptBytes)
+			script = strings.ReplaceAll(script, "%%VPS_ENDPOINT%%", vpsURL+"/api/config/token")
+			script = strings.ReplaceAll(script, "%%VPS_ADMIN_KEY%%", cfg.AdminKey)
+			c.Header("Content-Type", "application/javascript; charset=utf-8")
+			c.String(http.StatusOK, script)
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
 
 	// Serve static dashboard if directory exists
 	if _, err := os.Stat("dashboard"); err == nil {

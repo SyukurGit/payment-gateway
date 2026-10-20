@@ -1,811 +1,861 @@
-/**
- * PaymentG — Dashboard Merchant QRIS
- * Pure Vanilla JS, zero build dependencies.
- */
-
-// 1. Configuration & Host Auto-Detection
-const DEFAULT_BACKEND = window.location.protocol.startsWith("http") ? window.location.origin : "http://localhost:3200";
-
-const CONFIG = {
-  API_URL: localStorage.getItem("paymentg_api_url") || DEFAULT_BACKEND,
-  ADMIN_KEY: localStorage.getItem("paymentg_admin_key") || "adm_secret_paymentg_2026"
-};
-
-// Global State
-let allOrders = [];
-let allApps = [];
-let autoRefreshTimer = null;
-
-function escapeHtml(str) {
-  if (!str) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-// Initialize on Load
-document.addEventListener("DOMContentLoaded", () => {
-  checkLockScreen();
-  setupTabs();
-  setupSettingsModal();
-});
-
-// ==========================================
-// 0. PIN Access Gate (Session Auth)
-// ==========================================
-function checkLockScreen() {
-  const isUnlocked = sessionStorage.getItem("paymentg_unlocked") === "true" || sessionStorage.getItem("paymentg_sandbox_unlocked") === "true";
-  const lockOverlay = document.getElementById("pin-lockscreen");
-
-  if (!isUnlocked) {
-    if (lockOverlay) lockOverlay.style.display = "flex";
-    const field = document.getElementById("pin-field");
-    if (field) setTimeout(() => field.focus(), 150);
-  } else {
-    if (lockOverlay) lockOverlay.style.display = "none";
-    initDashboard();
-  }
-}
-
-async function submitPIN(e) {
-  e.preventDefault();
-  const pinInput = document.getElementById("pin-field");
-  const errElem = document.getElementById("pin-error-msg");
-  const btn = document.getElementById("btn-unlock-pin");
-  const pin = pinInput.value.trim();
-
-  if (!pin) return;
-
-  btn.disabled = true;
-  btn.innerText = "Memverifikasi...";
-  errElem.style.display = "none";
-
-  try {
-    const res = await fetch(`${CONFIG.API_URL}/api/auth/pin`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin })
-    });
-    const json = await res.json();
-
-    if (res.ok && json.success) {
-      sessionStorage.setItem("paymentg_unlocked", "true");
-      sessionStorage.setItem("paymentg_sandbox_unlocked", "true");
-      if (json.data && json.data.admin_key) {
-        CONFIG.ADMIN_KEY = json.data.admin_key;
-        localStorage.setItem("paymentg_admin_key", json.data.admin_key);
-      }
-      document.getElementById("pin-lockscreen").style.display = "none";
-      initDashboard();
-    } else {
-      errElem.innerText = json.error || "PIN akses salah!";
-      errElem.style.display = "block";
-      pinInput.value = "";
-      pinInput.focus();
-    }
-  } catch (err) {
-    if (pin === "2207") {
-      sessionStorage.setItem("paymentg_unlocked", "true");
-      sessionStorage.setItem("paymentg_sandbox_unlocked", "true");
-      document.getElementById("pin-lockscreen").style.display = "none";
-      initDashboard();
-    } else {
-      errElem.innerText = "Gagal menghubungi server API (" + err.message + ")";
-      errElem.style.display = "block";
-    }
-  } finally {
-    btn.disabled = false;
-    btn.innerText = "Buka Akses Dashboard";
-  }
-}
-
-function initDashboard() {
-  loadAllData();
-  loadApps();
-
-  const autoCheckbox = document.getElementById("auto-refresh-toggle");
-  if (autoCheckbox) {
-    autoCheckbox.addEventListener("change", (e) => {
-      if (e.target.checked) startAutoRefresh();
-      else stopAutoRefresh();
-    });
-    startAutoRefresh();
-  }
-}
-
-// ==========================================
-// 1. Navigation Tabs
-// ==========================================
-function setupTabs() {
-  document.querySelectorAll(".tab-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-      btn.classList.add("active");
-      const target = document.getElementById(btn.dataset.tab);
-      if (target) target.classList.add("active");
-
-      if (btn.dataset.tab === "tab-orders") loadOrders();
-      if (btn.dataset.tab === "tab-apps") loadApps();
-      if (btn.dataset.tab === "tab-dashboard") loadDashboardStats();
-    });
-  });
-}
-
-// ==========================================
-// 2. HTTP API Client Helper
-// ==========================================
-async function apiRequest(endpoint, method = "GET", body = null) {
-  const url = `${CONFIG.API_URL}${endpoint}`;
-  const headers = { 
-    "Content-Type": "application/json",
-    "X-Admin-Key": CONFIG.ADMIN_KEY
-  };
-
-  const options = { method, headers };
-  if (body) options.body = JSON.stringify(body);
-
-  try {
-    const res = await fetch(url, options);
-    const data = await res.json();
-    return { ok: res.ok, status: res.status, data };
-  } catch (err) {
-    console.error(`API Error (${endpoint}):`, err);
-    return { ok: false, error: err.message };
-  }
-}
-
-// ==========================================
-// 3. Data Loaders & Health
-// ==========================================
-async function loadAllData() {
-  await checkHealth();
-  await loadDashboardStats();
-  await loadOrders();
-}
-
-async function checkHealth() {
-  const navBadge = document.getElementById("server-status-badge");
-  const criticalAlert = document.getElementById("critical-session-alert");
-  const banner = document.getElementById("session-banner");
-  const bannerIcon = document.getElementById("session-banner-icon");
-  const bannerTitle = document.getElementById("session-banner-title");
-  const bannerDesc = document.getElementById("session-banner-desc");
-  const statusBadge = document.getElementById("session-status-badge");
-
-  const metricStatus = document.getElementById("token-metric-status");
-  const metricAge = document.getElementById("token-metric-age");
-  const metricUpdated = document.getElementById("token-metric-updated");
-  const metricTTL = document.getElementById("token-metric-ttl");
-  const progressBar = document.getElementById("token-progress-bar");
-  const metricPoll = document.getElementById("token-metric-poll");
-  const metricPending = document.getElementById("token-metric-pending");
-
-  try {
-    const res = await fetch(`${CONFIG.API_URL}/api/health`);
-    const data = await res.json();
-
-    if (res.ok && data.success) {
-      const health = data.data;
-      const isOnline = Boolean(health.token_valid);
-      const ageHours = Number(health.token_age_hours || 0);
-      const remainingHours = Math.max(0, 24 - ageHours);
-      const isExpiringSoon = isOnline && (remainingHours <= 4);
-
-      // 1. Critical Floating Alert (Hanya muncul jika token mati)
-      if (criticalAlert) {
-        criticalAlert.style.display = isOnline ? "none" : "flex";
-      }
-
-      // 2. Navbar Pill
-      if (navBadge) {
-        navBadge.innerHTML = `
-          <span class="status-dot ${isOnline ? (isExpiringSoon ? 'degraded' : 'online') : 'offline'}"></span>
-          <span class="status-text">${isOnline ? (isExpiringSoon ? 'Perlu Refresh' : 'Gateway Aktif') : 'Sesi Mati'}</span>
-        `;
-      }
-
-      // 3. Status Hub Banner Classes & Title
-      if (banner) {
-        banner.className = `token-hub-card ${isOnline ? (isExpiringSoon ? 'warning' : 'connected') : 'disconnected'}`;
-      }
-      if (bannerIcon) {
-        bannerIcon.innerText = isOnline ? (isExpiringSoon ? "⚠️" : "🟢") : "🔴";
-      }
-      if (bannerTitle) {
-        bannerTitle.innerText = isOnline 
-          ? (isExpiringSoon ? "Sesi ShopeePay Mendekati Batas (Perlu Refresh)" : "Sesi ShopeePay Merchant (Live Polling)")
-          : "Sesi ShopeePay Terputus / Perlu Login Ulang!";
-      }
-
-      // 4. Status Badge Pill
-      if (statusBadge) {
-        if (isOnline) {
-          if (isExpiringSoon) {
-            statusBadge.className = "badge-status-pill badge-warning";
-            statusBadge.innerText = `Sisa ~${Math.max(1, Math.round(remainingHours))} Jam`;
-          } else {
-            statusBadge.className = "badge-status-pill badge-online";
-            statusBadge.innerText = "Aktif & Normal";
-          }
-        } else {
-          statusBadge.className = "badge-status-pill badge-danger";
-          statusBadge.innerText = "Sesi Terputus / Expired";
-        }
-      }
-
-      // Subtitle info
-      const ageStr = ageHours > 0 
-        ? (ageHours < 1 ? Math.round(ageHours * 60) + " menit lalu" : ageHours.toFixed(1) + " jam lalu")
-        : "Baru saja";
-      const remStr = remainingHours > 1 
-        ? `${Math.floor(remainingHours)} jam lagi` 
-        : `${Math.max(1, Math.round(remainingHours * 60))} menit lagi`;
-      const pollTime = health.last_poll_at ? new Date(health.last_poll_at).toLocaleTimeString("id-ID") : "Aktif";
-
-      if (bannerDesc) {
-        if (isOnline) {
-          bannerDesc.innerText = `Gateway memeriksa mutasi ShopeePay otomatis. Terakhir sinkron: ${pollTime}.`;
-        } else {
-          bannerDesc.innerText = health.token_error || "Sesi ShopeePay telah kadaluwarsa. Mutasi tidak dapat dibaca sebelum token diperbarui.";
-        }
-      }
-
-      // 5. 4 Metrik Sesi
-      if (metricStatus) {
-        metricStatus.className = `token-metric-val ${isOnline ? 'text-success' : 'text-danger'}`;
-        metricStatus.innerText = isOnline ? "Valid (Login Aktif)" : "🔴 Kadaluwarsa / Putus";
-      }
-
-      if (metricAge) {
-        metricAge.innerText = isOnline ? ageStr : "Kedaluwarsa";
-      }
-
-      if (metricUpdated) {
-        metricUpdated.innerText = health.token_updated_at 
-          ? "Update: " + new Date(health.token_updated_at).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) + " WIB"
-          : "Waktu update: -";
-      }
-
-      if (metricTTL) {
-        metricTTL.className = `token-metric-val ${isOnline ? (isExpiringSoon ? 'text-warning' : 'text-primary') : 'text-danger'}`;
-        metricTTL.innerText = isOnline ? `~${remStr}` : "0 Jam (Expired)";
-      }
-
-      if (progressBar) {
-        const percent = isOnline ? Math.max(0, Math.min(100, Math.round((remainingHours / 24) * 100))) : 0;
-        progressBar.style.width = percent + "%";
-        progressBar.style.background = isOnline 
-          ? (isExpiringSoon ? "var(--warning)" : "var(--success)")
-          : "var(--danger)";
-      }
-
-      if (metricPoll) {
-        metricPoll.className = `token-metric-val ${isOnline ? 'text-success' : 'text-danger'}`;
-        metricPoll.innerText = isOnline ? "Normal (Aktif)" : "Terhenti";
-      }
-
-      if (metricPending) {
-        metricPending.innerText = `Order aktif: ${health.pending_orders || 0} transaksi`;
-      }
-    }
-  } catch (err) {
-    if (navBadge) {
-      navBadge.innerHTML = `
-        <span class="status-dot offline"></span>
-        <span class="status-text">Server Offline</span>
-      `;
-    }
-    if (criticalAlert) {
-      criticalAlert.style.display = "flex";
-      const titleElem = criticalAlert.querySelector(".critical-alert-title");
-      const descElem = criticalAlert.querySelector(".critical-alert-desc");
-      if (titleElem) titleElem.innerText = "Tidak Dapat Menghubungi Server Gateway";
-      if (descElem) descElem.innerText = "Pastikan server PaymentG aktif di " + CONFIG.API_URL;
-    }
-    if (banner) {
-      banner.className = "token-hub-card disconnected";
-      if (bannerIcon) bannerIcon.innerText = "⚠️";
-      if (bannerTitle) bannerTitle.innerText = "Tidak Dapat Menghubungi Server Backend";
-      if (bannerDesc) bannerDesc.innerText = "Pastikan server PaymentG aktif di " + CONFIG.API_URL;
-      if (statusBadge) {
-        statusBadge.className = "badge-status-pill badge-danger";
-        statusBadge.innerText = "Server Offline";
-      }
-    }
-  }
-}
-
-async function loadDashboardStats() {
-  const res = await apiRequest("/api/stats", "GET");
-  if (res.ok && res.data.success) {
-    const s = res.data.data;
-    document.getElementById("stat-revenue").innerText = "Rp " + Number(s.total_revenue || 0).toLocaleString("id-ID");
-    document.getElementById("stat-paid-count").innerText = s.paid_orders || 0;
-    document.getElementById("stat-pending-count").innerText = s.pending_orders || 0;
-    document.getElementById("stat-total-orders").innerText = s.total_orders || 0;
-  }
-}
-
-// ==========================================
-// 4. Mutasi Transaksi (Orders)
-// ==========================================
-async function loadOrders() {
-  const tbody = document.getElementById("orders-tbody");
-  if (!tbody) return;
-
-  const res = await apiRequest("/api/orders?limit=100", "GET");
-  if (!res.ok || !res.data.success) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat data mutasi. Periksa koneksi backend.</td></tr>`;
-    return;
-  }
-
-  allOrders = res.data.data || [];
-  renderOrdersTable();
-}
-
-function renderOrdersTable() {
-  const tbody = document.getElementById("orders-tbody");
-  if (!tbody) return;
-
-  const filterStatus = document.getElementById("filter-status") ? document.getElementById("filter-status").value : "ALL";
-  const search = document.getElementById("search-order") ? document.getElementById("search-order").value.toLowerCase().trim() : "";
-
-  const filtered = allOrders.filter(o => {
-    const matchesStatus = filterStatus === "ALL" || o.status === filterStatus;
-    const matchesSearch = !search || 
-      (o.id && o.id.toLowerCase().includes(search)) ||
-      (o.reference_id && o.reference_id.toLowerCase().includes(search)) ||
-      (o.shopee_tx_id && o.shopee_tx_id.toLowerCase().includes(search));
-    return matchesStatus && matchesSearch;
-  });
-
-  if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 32px;">Tidak ada riwayat mutasi yang cocok.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = filtered.map(o => {
-    let badgeClass = "badge-pending";
-    if (o.status === "PAID") badgeClass = "badge-paid";
-    else if (o.status === "EXPIRED") badgeClass = "badge-expired";
-    else if (o.status === "CANCELLED") badgeClass = "badge-cancelled";
-
-    const dateFormatted = o.created_at ? new Date(o.created_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" }) : "-";
-
-    return `
-      <tr>
-        <td>
-          <div style="font-weight: 700; color: var(--text-main); font-family: monospace;">${escapeHtml(o.id)}</div>
-          <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${escapeHtml(o.reference_id || '-')}</div>
-        </td>
-        <td class="font-mono">Rp ${Number(o.original_amount).toLocaleString("id-ID")}</td>
-        <td><span style="color: var(--primary); font-weight: 700; font-family: monospace;">+${escapeHtml(o.unique_code)}</span></td>
-        <td><b class="font-mono" style="font-size: 14px; color: var(--text-main);">Rp ${Number(o.total_amount).toLocaleString("id-ID")}</b></td>
-        <td><span class="badge ${badgeClass}">${escapeHtml(o.status)}</span></td>
-        <td><code class="font-mono" style="font-size: 11px; color: var(--text-muted);">${escapeHtml(o.shopee_tx_id || '-')}</code></td>
-        <td style="font-size: 11.5px; color: var(--text-muted);">${escapeHtml(dateFormatted)}</td>
-        <td style="text-align: right;">
-          <button class="btn btn-secondary btn-sm" onclick="showQRModal('${escapeHtml(o.id)}', ${Number(o.total_amount)}, '${escapeHtml(o.status)}')">
-            Lihat QR
-          </button>
-        </td>
-      </tr>
-    `;
-  }).join("");
-}
-
-// ==========================================
-// 5. Kelola Web Toko (Tab Apps)
-// ==========================================
-async function loadApps() {
-  const tbody = document.getElementById("apps-tbody");
-  if (!tbody) return;
-
-  const res = await apiRequest("/api/apps", "GET");
-  if (!res.ok || !res.data.success) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat daftar toko.</td></tr>`;
-    return;
-  }
-
-  allApps = res.data.data || [];
-
-  if (allApps.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">Belum ada web toko yang didaftarkan. Gunakan form di sebelah kiri untuk membuat.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = allApps.map(a => `
-    <tr>
-      <td>
-        <div style="font-weight: 800; color: var(--text-main);">${escapeHtml(a.name)}</div>
-        <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${escapeHtml(a.id)}</div>
-      </td>
-      <td>
-        <div class="table-key-pill">
-          <code class="font-mono">${escapeHtml(a.api_key)}</code>
-          <button class="btn btn-secondary btn-xs" title="Salin API Key" onclick="copyToClipboard('${escapeHtml(a.api_key)}', this)">📋</button>
-        </div>
-      </td>
-      <td>
-        <span style="font-size: 11.5px; font-family: monospace; color: var(--text-muted);" title="${escapeHtml(a.webhook_url)}">
-          ${escapeHtml(a.webhook_url.length > 36 ? a.webhook_url.substring(0, 36) + '...' : a.webhook_url)}
-        </span>
-      </td>
-      <td>
-        <span class="badge ${a.is_active ? 'badge-paid' : 'badge-expired'}">${a.is_active ? 'Aktif' : 'Non-aktif'}</span>
-      </td>
-      <td style="text-align: right;">
-        <button class="btn btn-danger btn-xs" onclick="deleteApp('${a.id}')">Hapus</button>
-      </td>
-    </tr>
-  `).join("");
-}
-
-async function submitCreateApp(event) {
-  event.preventDefault();
-  const name = document.getElementById("app-name").value.trim();
-  const webhook = document.getElementById("app-webhook").value.trim();
-  if (!name || !webhook) return;
-
-  const btn = document.getElementById("btn-create-app");
-  btn.disabled = true;
-  btn.innerText = "Mendaftarkan Toko...";
-
-  const res = await apiRequest("/api/apps", "POST", { name, webhook_url: webhook });
-  btn.disabled = false;
-  btn.innerHTML = `<span>➕</span> Daftarkan Web Toko & Dapatkan API Key`;
-
-  if (res.ok && res.data.success) {
-    const created = res.data.data;
-
-    // Populate Modal
-    document.getElementById("created-modal-name").innerText = created.name;
-    document.getElementById("created-modal-apikey").value = created.api_key;
-
-    const envSnippet = 
-`# Konfigurasi PaymentG (${created.name})
-PAYMENTG_API_URL=${CONFIG.API_URL}
-PAYMENTG_API_KEY=${created.api_key}`;
-
-    document.getElementById("created-modal-env").innerText = envSnippet;
-
-    // Open Modal
-    document.getElementById("created-app-modal").classList.add("active");
-
-    // Reset Form
-    document.getElementById("app-name").value = "";
-    document.getElementById("app-webhook").value = "";
-
-    loadApps();
-  } else {
-    alert("Gagal membuat web toko: " + (res.data ? res.data.error : res.error));
-  }
-}
-
-function copyEnvSnippet(btn) {
-  const code = document.getElementById("created-modal-env").innerText;
-  copyToClipboard(code, btn);
-}
-
-async function deleteApp(id) {
-  const app = allApps.find(x => x.id === id);
-  const name = app ? app.name : "toko ini";
-  if (!confirm(`Yakin ingin menghapus toko "${name}"?\nSemua tagihan terkait toko ini akan ikut dihapus.`)) return;
-  const res = await apiRequest(`/api/apps/${id}`, "DELETE");
-  if (res.ok) {
-    showToast("Toko berhasil dihapus!");
-    loadApps();
-  } else {
-    alert("Gagal menghapus toko.");
-  }
-}
-
-// ==========================================
-// 6. Clipboard & Toast Helpers
-// ==========================================
-function copyToClipboard(text, btnElement = null) {
-  if (!text) return;
-
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(text).then(() => {
-      onCopySuccess(btnElement);
-    }).catch(() => {
-      fallbackCopyText(text, btnElement);
-    });
-  } else {
-    fallbackCopyText(text, btnElement);
-  }
-}
-
-function fallbackCopyText(text, btnElement) {
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.left = "-9999px";
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-  try {
-    document.execCommand("copy");
-    onCopySuccess(btnElement);
-  } catch (err) {
-    alert("Gagal menyalin. Silakan salin manual.");
-  }
-  document.body.removeChild(textarea);
-}
-
-function onCopySuccess(btnElement) {
-  showToast("📋 Berhasil disalin ke clipboard!");
-  if (btnElement) {
-    const originalText = btnElement.innerText;
-    btnElement.innerText = "✓";
-    setTimeout(() => {
-      btnElement.innerText = originalText;
-    }, 1500);
-  }
-}
-
-let toastTimer = null;
-function showToast(message) {
-  const toast = document.getElementById("toast");
-  const msgElem = document.getElementById("toast-message");
-  if (!toast) return;
-
-  msgElem.innerText = message;
-  toast.classList.add("active");
-
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.classList.remove("active");
-  }, 2600);
-}
-
-// ==========================================
-// 7. Modal QR
-// ==========================================
-function showQRModal(orderId, totalAmount, status = "PENDING") {
-  const modal = document.getElementById("qr-modal");
-  document.getElementById("modal-qr-img").src = `${CONFIG.API_URL}/api/orders/${orderId}/qr.png`;
-  document.getElementById("modal-qr-id").innerText = orderId;
-  document.getElementById("modal-qr-amount").innerText = "Rp " + Number(totalAmount).toLocaleString("id-ID");
-  
-  const statusElem = document.getElementById("modal-qr-status");
-  if (statusElem) {
-    statusElem.innerText = status;
-    let badgeClass = "badge-pending";
-    if (status === 'PAID') badgeClass = "badge-paid";
-    else if (status === 'CANCELLED') badgeClass = "badge-cancelled";
-    else if (status === 'EXPIRED') badgeClass = "badge-expired";
-    statusElem.className = `badge ${badgeClass}`;
-  }
-
-  modal.classList.add("active");
-}
-
-// ==========================================
-// 8. Token & Playwright Operations
-// ==========================================
-async function triggerPlaywrightRefresh() {
-  const btn = document.getElementById("btn-playwright");
-  if (btn) {
-    btn.disabled = true;
-    btn.innerText = "⏳ Membuka Browser...";
-  }
-
-  const res = await apiRequest("/api/token/refresh", "POST", {});
-  if (btn) {
-    btn.disabled = false;
-    btn.innerText = "🤖 Auto-Login Playwright";
-  }
-
-  if (res.ok && res.data.success) {
-    showToast("Hasil: " + res.data.data);
-    loadAllData();
-  } else {
-    alert("Gagal auto-refresh: " + (res.data ? res.data.error : res.error));
-  }
-}
-
-function manualUpdateToken() {
-  openTokenImportModal();
-}
-
-function openTokenImportModal() {
-  const modal = document.getElementById("token-import-modal");
-  if (!modal) return;
-  const field = document.getElementById("token-import-field");
-  if (field) {
-    field.value = "";
-    validateTokenInput(field);
-    setTimeout(() => field.focus(), 150);
-  }
-  modal.classList.add("active");
-}
-
-function validateTokenInput(elem) {
-  const val = elem ? elem.value.trim() : "";
-  const countBadge = document.getElementById("token-char-count");
-  const msgBadge = document.getElementById("token-validation-msg");
-  const btnSave = document.getElementById("btn-save-token");
-
-  if (countBadge) {
-    countBadge.innerText = val.length + " Karakter";
-  }
-
-  if (!val) {
-    if (msgBadge) {
-      msgBadge.className = "text-muted";
-      msgBadge.innerHTML = "Format: Diawali dengan <code>B:</code> (~300-800 karakter)";
-    }
-    if (btnSave) btnSave.disabled = false;
-    return;
-  }
-
-  if (val.startsWith("B:")) {
-    if (msgBadge) {
-      msgBadge.className = "text-success font-semibold";
-      msgBadge.innerHTML = "✅ Format token valid (diawali B:)";
-    }
-    if (btnSave) btnSave.disabled = false;
-  } else {
-    if (msgBadge) {
-      msgBadge.className = "text-danger font-semibold";
-      msgBadge.innerHTML = "⚠️ Token ShopeePay wajib diawali dengan 'B:'";
-    }
-    if (btnSave) btnSave.disabled = false;
-  }
-}
-
-async function pasteFromClipboard() {
-  try {
-    const text = await navigator.clipboard.readText();
-    const field = document.getElementById("token-import-field");
-    if (field && text) {
-      field.value = text.trim();
-      validateTokenInput(field);
-      showToast("Token disalin dari clipboard!");
-    }
-  } catch (err) {
-    alert("Tidak dapat mengakses clipboard. Silakan paste manual (Ctrl+V).");
-  }
-}
-
-function toggleTokenTips() {
-  const content = document.getElementById("token-tips-content");
-  const arrow = document.getElementById("token-tips-arrow");
-  if (!content) return;
-  const isHidden = content.style.display === "none";
-  content.style.display = isHidden ? "block" : "none";
-  if (arrow) arrow.innerText = isHidden ? "▲" : "▼";
-}
-
-async function submitTokenImport(e) {
-  e.preventDefault();
-  const field = document.getElementById("token-import-field");
-  const btn = document.getElementById("btn-save-token");
-  if (!field) return;
-
-  let token = field.value.trim().replace(/^["']|["']$/g, "");
-  if (!token) {
-    alert("Silakan masukkan token ShopeePay terlebih dahulu!");
-    return;
-  }
-
-  if (!token.startsWith("B:")) {
-    if (!confirm("Token yang Anda masukkan tidak diawali 'B:'. ShopeePay Partner biasanya menggunakan awalan 'B:'. Tetap lanjutkan simpan?")) {
-      return;
-    }
-  }
-
-  btn.disabled = true;
-  btn.innerText = "⏳ Menyimpan ke VPS...";
-
-  const res = await apiRequest("/api/config/token", "PUT", { token });
-  btn.disabled = false;
-  btn.innerText = "🚀 Simpan & Aktifkan di VPS";
-
-  if (res.ok && res.data.success) {
-    closeModal("token-import-modal");
-    showToast("✅ Sesi ShopeePay berhasil diperbarui ke server VPS!");
-    await loadAllData();
-  } else {
-    alert("Gagal memperbarui token: " + (res.data ? res.data.error : res.error));
-  }
-}
-
-function switchGuideTab(targetPanelId, btn) {
-  document.querySelectorAll(".guide-tab-btn").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".guide-tab-panel").forEach(p => p.classList.remove("active"));
-
-  if (btn) btn.classList.add("active");
-  const panel = document.getElementById(targetPanelId);
-  if (panel) panel.classList.add("active");
-}
-
-function openSyncInfoModal() {
-  const modal = document.getElementById("sync-guide-modal");
-  if (modal) modal.classList.add("active");
-}
-
-function copyBookmarkletCode(btn) {
-  const code = `javascript:void(function(){var d=window.injectData||window['injectData'];var tok=null;if(d&&d.User&&d.User.token){tok=d.User.token;}else{var c=document.cookie.split(';');for(var i=0;i<c.length;i++){var ck=c[i].trim();if(ck.indexOf('__shopee_partner_website_x_token_live=')===0){try{var p=ck.split('=')[1].split('.')[1];p+='===='.slice(0,(4-p.length%4)%4);var j=JSON.parse(atob(p.replace(/-/g,'+').replace(/_/g,'/')));if(j.token)tok=j.token;}catch(e){}}}}if(tok){fetch('${CONFIG.API_URL}/api/config/token',{method:'PUT',headers:{'Content-Type':'application/json','X-Admin-Key':'${CONFIG.ADMIN_KEY}'},body:JSON.stringify({token:tok})}).then(r=>r.json()).then(j=>{alert(j.success?'✅ Token ShopeePay BERHASIL disinkronkan ke PaymentG!':'❌ Gagal: '+(j.error||JSON.stringify(j)))}).catch(e=>alert('❌ Gagal: '+e));}else{alert('Buka https://partner.shopee.co.id/ terlebih dahulu!');}}())`;
-  copyToClipboard(code, btn);
-}
-
-
-// ==========================================
-// 9. Settings Modal
-// ==========================================
-function setupSettingsModal() {
-  const modal = document.getElementById("settings-modal");
-  const openBtn = document.getElementById("btn-open-settings");
-  const closeBtn = document.getElementById("btn-close-settings");
-
-  if (openBtn) {
-    openBtn.addEventListener("click", () => {
-      document.getElementById("setting-api-url").value = CONFIG.API_URL;
-      document.getElementById("setting-admin-key").value = CONFIG.ADMIN_KEY;
-      modal.classList.add("active");
-    });
-  }
-
-  if (closeBtn) {
-    closeBtn.addEventListener("click", () => modal.classList.remove("active"));
-  }
-
-  const saveBtn = document.getElementById("btn-save-settings");
-  if (saveBtn) {
-    saveBtn.addEventListener("click", () => {
-      CONFIG.API_URL = document.getElementById("setting-api-url").value.trim().replace(/\/$/, "");
-      CONFIG.ADMIN_KEY = document.getElementById("setting-admin-key").value.trim();
-
-      localStorage.setItem("paymentg_api_url", CONFIG.API_URL);
-      localStorage.setItem("paymentg_admin_key", CONFIG.ADMIN_KEY);
-
-      modal.classList.remove("active");
-      showToast("Pengaturan API berhasil disimpan!");
-      loadAllData();
-    });
-  }
-}
-
-function togglePasswordVisibility(fieldId, btn) {
-  const input = document.getElementById(fieldId);
-  if (!input) return;
-  if (input.type === "password") {
-    input.type = "text";
-    btn.innerText = "🔒";
-  } else {
-    input.type = "password";
-    btn.innerText = "👁️";
-  }
-}
-
-function resetSettingsToDefault() {
-  if (!confirm("Kembalikan URL Backend ke asal (" + DEFAULT_BACKEND + ")?")) return;
-  document.getElementById("setting-api-url").value = DEFAULT_BACKEND;
-  document.getElementById("setting-admin-key").value = "adm_secret_paymentg_2026";
-  showToast("Pengaturan dikembalikan ke default");
-}
-
-function closeModal(id) {
-  const modal = document.getElementById(id);
-  if (modal) modal.classList.remove("active");
-}
-
-// Auto Refresh Timers
-function startAutoRefresh() {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  autoRefreshTimer = setInterval(() => {
-    loadAllData();
-  }, 5000);
-}
-
-function stopAutoRefresh() {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  autoRefreshTimer = null;
-}
+/**
+ * PaymentG — Dashboard Merchant QRIS
+ * Pure Vanilla JS, zero build dependencies.
+ */
+
+// 1. Configuration & Host Auto-Detection
+const DEFAULT_BACKEND = window.location.protocol.startsWith("http") ? window.location.origin : "http://localhost:3200";
+
+const CONFIG = {
+  API_URL: localStorage.getItem("paymentg_api_url") || DEFAULT_BACKEND,
+  ADMIN_KEY: localStorage.getItem("paymentg_admin_key") || "adm_secret_paymentg_2026"
+};
+
+// Global State
+let allOrders = [];
+let allApps = [];
+let autoRefreshTimer = null;
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Initialize on Load
+document.addEventListener("DOMContentLoaded", () => {
+  checkUrlTokenImport();
+  checkLockScreen();
+  setupTabs();
+  setupSettingsModal();
+  setupBookmarkletLinks();
+});
+
+// ==========================================
+// 0. PIN Access Gate (Session Auth)
+// ==========================================
+function checkLockScreen() {
+  const isUnlocked = sessionStorage.getItem("paymentg_unlocked") === "true" || sessionStorage.getItem("paymentg_sandbox_unlocked") === "true";
+  const lockOverlay = document.getElementById("pin-lockscreen");
+
+  if (!isUnlocked) {
+    if (lockOverlay) lockOverlay.style.display = "flex";
+    const field = document.getElementById("pin-field");
+    if (field) setTimeout(() => field.focus(), 150);
+  } else {
+    if (lockOverlay) lockOverlay.style.display = "none";
+    initDashboard();
+  }
+}
+
+async function submitPIN(e) {
+  e.preventDefault();
+  const pinInput = document.getElementById("pin-field");
+  const errElem = document.getElementById("pin-error-msg");
+  const btn = document.getElementById("btn-unlock-pin");
+  const pin = pinInput.value.trim();
+
+  if (!pin) return;
+
+  btn.disabled = true;
+  btn.innerText = "Memverifikasi...";
+  errElem.style.display = "none";
+
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/api/auth/pin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin })
+    });
+    const json = await res.json();
+
+    if (res.ok && json.success) {
+      sessionStorage.setItem("paymentg_unlocked", "true");
+      sessionStorage.setItem("paymentg_sandbox_unlocked", "true");
+      if (json.data && json.data.admin_key) {
+        CONFIG.ADMIN_KEY = json.data.admin_key;
+        localStorage.setItem("paymentg_admin_key", json.data.admin_key);
+      }
+      document.getElementById("pin-lockscreen").style.display = "none";
+      initDashboard();
+    } else {
+      errElem.innerText = json.error || "PIN akses salah!";
+      errElem.style.display = "block";
+      pinInput.value = "";
+      pinInput.focus();
+    }
+  } catch (err) {
+    if (pin === "2207") {
+      sessionStorage.setItem("paymentg_unlocked", "true");
+      sessionStorage.setItem("paymentg_sandbox_unlocked", "true");
+      document.getElementById("pin-lockscreen").style.display = "none";
+      initDashboard();
+    } else {
+      errElem.innerText = "Gagal menghubungi server API (" + err.message + ")";
+      errElem.style.display = "block";
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Buka Akses Dashboard";
+  }
+}
+
+function initDashboard() {
+  checkUrlTokenImport();
+  setupBookmarkletLinks();
+  loadAllData();
+  loadApps();
+
+  const autoCheckbox = document.getElementById("auto-refresh-toggle");
+  if (autoCheckbox) {
+    autoCheckbox.addEventListener("change", (e) => {
+      if (e.target.checked) startAutoRefresh();
+      else stopAutoRefresh();
+    });
+    startAutoRefresh();
+  }
+}
+
+// ==========================================
+// 1. Navigation Tabs
+// ==========================================
+function setupTabs() {
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      btn.classList.add("active");
+      const target = document.getElementById(btn.dataset.tab);
+      if (target) target.classList.add("active");
+
+      if (btn.dataset.tab === "tab-orders") loadOrders();
+      if (btn.dataset.tab === "tab-apps") loadApps();
+      if (btn.dataset.tab === "tab-dashboard") loadDashboardStats();
+    });
+  });
+}
+
+// ==========================================
+// 2. HTTP API Client Helper
+// ==========================================
+async function apiRequest(endpoint, method = "GET", body = null) {
+  const url = `${CONFIG.API_URL}${endpoint}`;
+  const headers = { 
+    "Content-Type": "application/json",
+    "X-Admin-Key": CONFIG.ADMIN_KEY
+  };
+
+  const options = { method, headers };
+  if (body) options.body = JSON.stringify(body);
+
+  try {
+    const res = await fetch(url, options);
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  } catch (err) {
+    console.error(`API Error (${endpoint}):`, err);
+    return { ok: false, error: err.message };
+  }
+}
+
+// ==========================================
+// 3. Data Loaders & Health
+// ==========================================
+async function loadAllData() {
+  await checkHealth();
+  await loadDashboardStats();
+  await loadOrders();
+}
+
+async function checkHealth() {
+  const navBadge = document.getElementById("server-status-badge");
+  const criticalAlert = document.getElementById("critical-session-alert");
+  const banner = document.getElementById("session-banner");
+  const bannerIcon = document.getElementById("session-banner-icon");
+  const bannerTitle = document.getElementById("session-banner-title");
+  const bannerDesc = document.getElementById("session-banner-desc");
+  const statusBadge = document.getElementById("session-status-badge");
+
+  const metricStatus = document.getElementById("token-metric-status");
+  const metricAge = document.getElementById("token-metric-age");
+  const metricUpdated = document.getElementById("token-metric-updated");
+  const metricTTL = document.getElementById("token-metric-ttl");
+  const progressBar = document.getElementById("token-progress-bar");
+  const metricPoll = document.getElementById("token-metric-poll");
+  const metricPending = document.getElementById("token-metric-pending");
+
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/api/health`);
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      const health = data.data;
+      const isOnline = Boolean(health.token_valid);
+      const ageHours = Number(health.token_age_hours || 0);
+      const remainingHours = Math.max(0, 24 - ageHours);
+      const isExpiringSoon = isOnline && (remainingHours <= 4);
+
+      // 1. Critical Floating Alert (Hanya muncul jika token mati)
+      if (criticalAlert) {
+        criticalAlert.style.display = isOnline ? "none" : "flex";
+      }
+
+      // 2. Navbar Pill
+      if (navBadge) {
+        navBadge.innerHTML = `
+          <span class="status-dot ${isOnline ? (isExpiringSoon ? 'degraded' : 'online') : 'offline'}"></span>
+          <span class="status-text">${isOnline ? (isExpiringSoon ? 'Perlu Refresh' : 'Gateway Aktif') : 'Sesi Mati'}</span>
+        `;
+      }
+
+      // 3. Status Hub Banner Classes & Title
+      if (banner) {
+        banner.className = `token-hub-card ${isOnline ? (isExpiringSoon ? 'warning' : 'connected') : 'disconnected'}`;
+      }
+      if (bannerIcon) {
+        bannerIcon.innerText = isOnline ? (isExpiringSoon ? "⚠️" : "🟢") : "🔴";
+      }
+      if (bannerTitle) {
+        bannerTitle.innerText = isOnline 
+          ? (isExpiringSoon ? "Sesi ShopeePay Mendekati Batas (Perlu Refresh)" : "Sesi ShopeePay Merchant (Live Polling)")
+          : "Sesi ShopeePay Terputus / Perlu Login Ulang!";
+      }
+
+      // 4. Status Badge Pill
+      if (statusBadge) {
+        if (isOnline) {
+          if (isExpiringSoon) {
+            statusBadge.className = "badge-status-pill badge-warning";
+            statusBadge.innerText = `Sisa ~${Math.max(1, Math.round(remainingHours))} Jam`;
+          } else {
+            statusBadge.className = "badge-status-pill badge-online";
+            statusBadge.innerText = "Aktif & Normal";
+          }
+        } else {
+          statusBadge.className = "badge-status-pill badge-danger";
+          statusBadge.innerText = "Sesi Terputus / Expired";
+        }
+      }
+
+      // Subtitle info
+      const ageStr = ageHours > 0 
+        ? (ageHours < 1 ? Math.round(ageHours * 60) + " menit lalu" : ageHours.toFixed(1) + " jam lalu")
+        : "Baru saja";
+      const remStr = remainingHours > 1 
+        ? `${Math.floor(remainingHours)} jam lagi` 
+        : `${Math.max(1, Math.round(remainingHours * 60))} menit lagi`;
+      const pollTime = health.last_poll_at ? new Date(health.last_poll_at).toLocaleTimeString("id-ID") : "Aktif";
+
+      if (bannerDesc) {
+        if (isOnline) {
+          bannerDesc.innerText = `Gateway memeriksa mutasi ShopeePay otomatis. Terakhir sinkron: ${pollTime}.`;
+        } else {
+          bannerDesc.innerText = health.token_error || "Sesi ShopeePay telah kadaluwarsa. Mutasi tidak dapat dibaca sebelum token diperbarui.";
+        }
+      }
+
+      // 5. 4 Metrik Sesi
+      if (metricStatus) {
+        metricStatus.className = `token-metric-val ${isOnline ? 'text-success' : 'text-danger'}`;
+        metricStatus.innerText = isOnline ? "Valid (Login Aktif)" : "🔴 Kadaluwarsa / Putus";
+      }
+
+      if (metricAge) {
+        metricAge.innerText = isOnline ? ageStr : "Kedaluwarsa";
+      }
+
+      if (metricUpdated) {
+        metricUpdated.innerText = health.token_updated_at 
+          ? "Update: " + new Date(health.token_updated_at).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }) + " WIB"
+          : "Waktu update: -";
+      }
+
+      if (metricTTL) {
+        metricTTL.className = `token-metric-val ${isOnline ? (isExpiringSoon ? 'text-warning' : 'text-primary') : 'text-danger'}`;
+        metricTTL.innerText = isOnline ? `~${remStr}` : "0 Jam (Expired)";
+      }
+
+      if (progressBar) {
+        const percent = isOnline ? Math.max(0, Math.min(100, Math.round((remainingHours / 24) * 100))) : 0;
+        progressBar.style.width = percent + "%";
+        progressBar.style.background = isOnline 
+          ? (isExpiringSoon ? "var(--warning)" : "var(--success)")
+          : "var(--danger)";
+      }
+
+      if (metricPoll) {
+        metricPoll.className = `token-metric-val ${isOnline ? 'text-success' : 'text-danger'}`;
+        metricPoll.innerText = isOnline ? "Normal (Aktif)" : "Terhenti";
+      }
+
+      if (metricPending) {
+        metricPending.innerText = `Order aktif: ${health.pending_orders || 0} transaksi`;
+      }
+    }
+  } catch (err) {
+    if (navBadge) {
+      navBadge.innerHTML = `
+        <span class="status-dot offline"></span>
+        <span class="status-text">Server Offline</span>
+      `;
+    }
+    if (criticalAlert) {
+      criticalAlert.style.display = "flex";
+      const titleElem = criticalAlert.querySelector(".critical-alert-title");
+      const descElem = criticalAlert.querySelector(".critical-alert-desc");
+      if (titleElem) titleElem.innerText = "Tidak Dapat Menghubungi Server Gateway";
+      if (descElem) descElem.innerText = "Pastikan server PaymentG aktif di " + CONFIG.API_URL;
+    }
+    if (banner) {
+      banner.className = "token-hub-card disconnected";
+      if (bannerIcon) bannerIcon.innerText = "⚠️";
+      if (bannerTitle) bannerTitle.innerText = "Tidak Dapat Menghubungi Server Backend";
+      if (bannerDesc) bannerDesc.innerText = "Pastikan server PaymentG aktif di " + CONFIG.API_URL;
+      if (statusBadge) {
+        statusBadge.className = "badge-status-pill badge-danger";
+        statusBadge.innerText = "Server Offline";
+      }
+    }
+  }
+}
+
+async function loadDashboardStats() {
+  const res = await apiRequest("/api/stats", "GET");
+  if (res.ok && res.data.success) {
+    const s = res.data.data;
+    document.getElementById("stat-revenue").innerText = "Rp " + Number(s.total_revenue || 0).toLocaleString("id-ID");
+    document.getElementById("stat-paid-count").innerText = s.paid_orders || 0;
+    document.getElementById("stat-pending-count").innerText = s.pending_orders || 0;
+    document.getElementById("stat-total-orders").innerText = s.total_orders || 0;
+  }
+}
+
+// ==========================================
+// 4. Mutasi Transaksi (Orders)
+// ==========================================
+async function loadOrders() {
+  const tbody = document.getElementById("orders-tbody");
+  if (!tbody) return;
+
+  const res = await apiRequest("/api/orders?limit=100", "GET");
+  if (!res.ok || !res.data.success) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat data mutasi. Periksa koneksi backend.</td></tr>`;
+    return;
+  }
+
+  allOrders = res.data.data || [];
+  renderOrdersTable();
+}
+
+function renderOrdersTable() {
+  const tbody = document.getElementById("orders-tbody");
+  if (!tbody) return;
+
+  const filterStatus = document.getElementById("filter-status") ? document.getElementById("filter-status").value : "ALL";
+  const search = document.getElementById("search-order") ? document.getElementById("search-order").value.toLowerCase().trim() : "";
+
+  const filtered = allOrders.filter(o => {
+    const matchesStatus = filterStatus === "ALL" || o.status === filterStatus;
+    const matchesSearch = !search || 
+      (o.id && o.id.toLowerCase().includes(search)) ||
+      (o.reference_id && o.reference_id.toLowerCase().includes(search)) ||
+      (o.shopee_tx_id && o.shopee_tx_id.toLowerCase().includes(search));
+    return matchesStatus && matchesSearch;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 32px;">Tidak ada riwayat mutasi yang cocok.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(o => {
+    let badgeClass = "badge-pending";
+    if (o.status === "PAID") badgeClass = "badge-paid";
+    else if (o.status === "EXPIRED") badgeClass = "badge-expired";
+    else if (o.status === "CANCELLED") badgeClass = "badge-cancelled";
+
+    const dateFormatted = o.created_at ? new Date(o.created_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" }) : "-";
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight: 700; color: var(--text-main); font-family: monospace;">${escapeHtml(o.id)}</div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${escapeHtml(o.reference_id || '-')}</div>
+        </td>
+        <td class="font-mono">Rp ${Number(o.original_amount).toLocaleString("id-ID")}</td>
+        <td><span style="color: var(--primary); font-weight: 700; font-family: monospace;">+${escapeHtml(o.unique_code)}</span></td>
+        <td><b class="font-mono" style="font-size: 14px; color: var(--text-main);">Rp ${Number(o.total_amount).toLocaleString("id-ID")}</b></td>
+        <td><span class="badge ${badgeClass}">${escapeHtml(o.status)}</span></td>
+        <td><code class="font-mono" style="font-size: 11px; color: var(--text-muted);">${escapeHtml(o.shopee_tx_id || '-')}</code></td>
+        <td style="font-size: 11.5px; color: var(--text-muted);">${escapeHtml(dateFormatted)}</td>
+        <td style="text-align: right;">
+          <button class="btn btn-secondary btn-sm" onclick="showQRModal('${escapeHtml(o.id)}', ${Number(o.total_amount)}, '${escapeHtml(o.status)}')">
+            Lihat QR
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+// ==========================================
+// 5. Kelola Web Toko (Tab Apps)
+// ==========================================
+async function loadApps() {
+  const tbody = document.getElementById("apps-tbody");
+  if (!tbody) return;
+
+  const res = await apiRequest("/api/apps", "GET");
+  if (!res.ok || !res.data.success) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 24px;">Gagal memuat daftar toko.</td></tr>`;
+    return;
+  }
+
+  allApps = res.data.data || [];
+
+  if (allApps.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px;">Belum ada web toko yang didaftarkan. Gunakan form di sebelah kiri untuk membuat.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = allApps.map(a => `
+    <tr>
+      <td>
+        <div style="font-weight: 800; color: var(--text-main);">${escapeHtml(a.name)}</div>
+        <div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${escapeHtml(a.id)}</div>
+      </td>
+      <td>
+        <div class="table-key-pill">
+          <code class="font-mono">${escapeHtml(a.api_key)}</code>
+          <button class="btn btn-secondary btn-xs" title="Salin API Key" onclick="copyToClipboard('${escapeHtml(a.api_key)}', this)">📋</button>
+        </div>
+      </td>
+      <td>
+        <span style="font-size: 11.5px; font-family: monospace; color: var(--text-muted);" title="${escapeHtml(a.webhook_url)}">
+          ${escapeHtml(a.webhook_url.length > 36 ? a.webhook_url.substring(0, 36) + '...' : a.webhook_url)}
+        </span>
+      </td>
+      <td>
+        <span class="badge ${a.is_active ? 'badge-paid' : 'badge-expired'}">${a.is_active ? 'Aktif' : 'Non-aktif'}</span>
+      </td>
+      <td style="text-align: right;">
+        <button class="btn btn-danger btn-xs" onclick="deleteApp('${a.id}')">Hapus</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function submitCreateApp(event) {
+  event.preventDefault();
+  const name = document.getElementById("app-name").value.trim();
+  const webhook = document.getElementById("app-webhook").value.trim();
+  if (!name || !webhook) return;
+
+  const btn = document.getElementById("btn-create-app");
+  btn.disabled = true;
+  btn.innerText = "Mendaftarkan Toko...";
+
+  const res = await apiRequest("/api/apps", "POST", { name, webhook_url: webhook });
+  btn.disabled = false;
+  btn.innerHTML = `<span>➕</span> Daftarkan Web Toko & Dapatkan API Key`;
+
+  if (res.ok && res.data.success) {
+    const created = res.data.data;
+
+    // Populate Modal
+    document.getElementById("created-modal-name").innerText = created.name;
+    document.getElementById("created-modal-apikey").value = created.api_key;
+
+    const envSnippet = 
+`# Konfigurasi PaymentG (${created.name})
+PAYMENTG_API_URL=${CONFIG.API_URL}
+PAYMENTG_API_KEY=${created.api_key}`;
+
+    document.getElementById("created-modal-env").innerText = envSnippet;
+
+    // Open Modal
+    document.getElementById("created-app-modal").classList.add("active");
+
+    // Reset Form
+    document.getElementById("app-name").value = "";
+    document.getElementById("app-webhook").value = "";
+
+    loadApps();
+  } else {
+    alert("Gagal membuat web toko: " + (res.data ? res.data.error : res.error));
+  }
+}
+
+function copyEnvSnippet(btn) {
+  const code = document.getElementById("created-modal-env").innerText;
+  copyToClipboard(code, btn);
+}
+
+async function deleteApp(id) {
+  const app = allApps.find(x => x.id === id);
+  const name = app ? app.name : "toko ini";
+  if (!confirm(`Yakin ingin menghapus toko "${name}"?\nSemua tagihan terkait toko ini akan ikut dihapus.`)) return;
+  const res = await apiRequest(`/api/apps/${id}`, "DELETE");
+  if (res.ok) {
+    showToast("Toko berhasil dihapus!");
+    loadApps();
+  } else {
+    alert("Gagal menghapus toko.");
+  }
+}
+
+// ==========================================
+// 6. Clipboard & Toast Helpers
+// ==========================================
+function copyToClipboard(text, btnElement = null) {
+  if (!text) return;
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => {
+      onCopySuccess(btnElement);
+    }).catch(() => {
+      fallbackCopyText(text, btnElement);
+    });
+  } else {
+    fallbackCopyText(text, btnElement);
+  }
+}
+
+function fallbackCopyText(text, btnElement) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand("copy");
+    onCopySuccess(btnElement);
+  } catch (err) {
+    alert("Gagal menyalin. Silakan salin manual.");
+  }
+  document.body.removeChild(textarea);
+}
+
+function onCopySuccess(btnElement) {
+  showToast("📋 Berhasil disalin ke clipboard!");
+  if (btnElement) {
+    const originalText = btnElement.innerText;
+    btnElement.innerText = "✓";
+    setTimeout(() => {
+      btnElement.innerText = originalText;
+    }, 1500);
+  }
+}
+
+let toastTimer = null;
+function showToast(message) {
+  const toast = document.getElementById("toast");
+  const msgElem = document.getElementById("toast-message");
+  if (!toast) return;
+
+  msgElem.innerText = message;
+  toast.classList.add("active");
+
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("active");
+  }, 2600);
+}
+
+// ==========================================
+// 7. Modal QR
+// ==========================================
+function showQRModal(orderId, totalAmount, status = "PENDING") {
+  const modal = document.getElementById("qr-modal");
+  document.getElementById("modal-qr-img").src = `${CONFIG.API_URL}/api/orders/${orderId}/qr.png`;
+  document.getElementById("modal-qr-id").innerText = orderId;
+  document.getElementById("modal-qr-amount").innerText = "Rp " + Number(totalAmount).toLocaleString("id-ID");
+  
+  const statusElem = document.getElementById("modal-qr-status");
+  if (statusElem) {
+    statusElem.innerText = status;
+    let badgeClass = "badge-pending";
+    if (status === 'PAID') badgeClass = "badge-paid";
+    else if (status === 'CANCELLED') badgeClass = "badge-cancelled";
+    else if (status === 'EXPIRED') badgeClass = "badge-expired";
+    statusElem.className = `badge ${badgeClass}`;
+  }
+
+  modal.classList.add("active");
+}
+
+// ==========================================
+// 8. Token & Playwright Operations
+// ==========================================
+async function triggerPlaywrightRefresh() {
+  const btn = document.getElementById("btn-playwright");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = "⏳ Membuka Browser...";
+  }
+
+  const res = await apiRequest("/api/token/refresh", "POST", {});
+  if (btn) {
+    btn.disabled = false;
+    btn.innerText = "🤖 Auto-Login Playwright";
+  }
+
+  if (res.ok && res.data.success) {
+    showToast("Hasil: " + res.data.data);
+    loadAllData();
+  } else {
+    alert("Gagal auto-refresh: " + (res.data ? res.data.error : res.error));
+  }
+}
+
+function manualUpdateToken() {
+  openTokenImportModal();
+}
+
+function openTokenImportModal() {
+  const modal = document.getElementById("token-import-modal");
+  if (!modal) return;
+  const field = document.getElementById("token-import-field");
+  if (field) {
+    field.value = "";
+    validateTokenInput(field);
+    setTimeout(() => field.focus(), 150);
+  }
+  modal.classList.add("active");
+}
+
+function validateTokenInput(elem) {
+  const val = elem ? elem.value.trim() : "";
+  const countBadge = document.getElementById("token-char-count");
+  const msgBadge = document.getElementById("token-validation-msg");
+  const btnSave = document.getElementById("btn-save-token");
+
+  if (countBadge) {
+    countBadge.innerText = val.length + " Karakter";
+  }
+
+  if (!val) {
+    if (msgBadge) {
+      msgBadge.className = "text-muted";
+      msgBadge.innerHTML = "Format: Diawali dengan <code>B:</code> (~300-800 karakter)";
+    }
+    if (btnSave) btnSave.disabled = false;
+    return;
+  }
+
+  if (val.startsWith("B:")) {
+    if (msgBadge) {
+      msgBadge.className = "text-success font-semibold";
+      msgBadge.innerHTML = "✅ Format token valid (diawali B:)";
+    }
+    if (btnSave) btnSave.disabled = false;
+  } else {
+    if (msgBadge) {
+      msgBadge.className = "text-danger font-semibold";
+      msgBadge.innerHTML = "⚠️ Token ShopeePay wajib diawali dengan 'B:'";
+    }
+    if (btnSave) btnSave.disabled = false;
+  }
+}
+
+async function pasteFromClipboard() {
+  try {
+    const text = await navigator.clipboard.readText();
+    const field = document.getElementById("token-import-field");
+    if (field && text) {
+      field.value = text.trim();
+      validateTokenInput(field);
+      showToast("Token disalin dari clipboard!");
+    }
+  } catch (err) {
+    alert("Tidak dapat mengakses clipboard. Silakan paste manual (Ctrl+V).");
+  }
+}
+
+function toggleTokenTips() {
+  const content = document.getElementById("token-tips-content");
+  const arrow = document.getElementById("token-tips-arrow");
+  if (!content) return;
+  const isHidden = content.style.display === "none";
+  content.style.display = isHidden ? "block" : "none";
+  if (arrow) arrow.innerText = isHidden ? "▲" : "▼";
+}
+
+async function submitTokenImport(e) {
+  e.preventDefault();
+  const field = document.getElementById("token-import-field");
+  const btn = document.getElementById("btn-save-token");
+  if (!field) return;
+
+  let token = field.value.trim().replace(/^["']|["']$/g, "");
+  if (!token) {
+    alert("Silakan masukkan token ShopeePay terlebih dahulu!");
+    return;
+  }
+
+  if (!token.startsWith("B:")) {
+    if (!confirm("Token yang Anda masukkan tidak diawali 'B:'. ShopeePay Partner biasanya menggunakan awalan 'B:'. Tetap lanjutkan simpan?")) {
+      return;
+    }
+  }
+
+  btn.disabled = true;
+  btn.innerText = "⏳ Menyimpan ke VPS...";
+
+  const res = await apiRequest("/api/config/token", "PUT", { token });
+  btn.disabled = false;
+  btn.innerText = "🚀 Simpan & Aktifkan di VPS";
+
+  if (res.ok && res.data.success) {
+    closeModal("token-import-modal");
+    showToast("✅ Sesi ShopeePay berhasil diperbarui ke server VPS!");
+    await loadAllData();
+  } else {
+    alert("Gagal memperbarui token: " + (res.data ? res.data.error : res.error));
+  }
+}
+
+function switchGuideTab(targetPanelId, btn) {
+  document.querySelectorAll(".guide-tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".guide-tab-panel").forEach(p => p.classList.remove("active"));
+
+  if (btn) btn.classList.add("active");
+  const panel = document.getElementById(targetPanelId);
+  if (panel) panel.classList.add("active");
+}
+
+function openSyncInfoModal() {
+  const modal = document.getElementById("sync-guide-modal");
+  if (modal) modal.classList.add("active");
+}
+
+async function checkUrlTokenImport() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get("import_token") || urlParams.get("token");
+  if (token) {
+    sessionStorage.setItem("paymentg_pending_import_token", token);
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
+  const pending = sessionStorage.getItem("paymentg_pending_import_token");
+  if (!pending) return;
+
+  const isUnlocked = sessionStorage.getItem("paymentg_unlocked") === "true" || sessionStorage.getItem("paymentg_sandbox_unlocked") === "true";
+  if (!isUnlocked) return; // Wait until PIN is unlocked
+
+  sessionStorage.removeItem("paymentg_pending_import_token");
+  showToast("⏳ Sedang memvalidasi token ShopeePay ke Shopee...", 4000);
+
+  try {
+    const res = await apiRequest("/api/config/token", "PUT", { token: pending });
+    if (res.ok && res.data && res.data.success) {
+      showToast("🎉 " + (res.data.data || "Token ShopeePay berhasil diimpor & divalidasi!"), 6000);
+      await loadAllData();
+    } else {
+      const err = (res.data && res.data.error) || res.error || "Gagal memvalidasi token";
+      alert("❌ Token ShopeePay ditolak oleh Shopee:\n\n" + err);
+    }
+  } catch (e) {
+    alert("❌ Gagal menghubungi server VPS: " + e.message);
+  }
+}
+
+function getBookmarkletCode() {
+  return `javascript:(function(){var t=null;try{for(var i=0;i<localStorage.length;i++){var v=localStorage.getItem(localStorage.key(i));if(v&&v.includes('"token":"B:')){var m=v.match(/"token"\\s*:\\s*"(B:[^"]+)"/);if(m&&m[1]){t=m[1];break;}}}}catch(e){}if(!t){try{for(var i=0;i<sessionStorage.length;i++){var v=sessionStorage.getItem(sessionStorage.key(i));if(v&&v.includes('"token":"B:')){var m=v.match(/"token"\\s*:\\s*"(B:[^"]+)"/);if(m&&m[1]){t=m[1];break;}}}}catch(e){}}if(!t){var m=document.cookie.match(/(?:^|;\\s*)(?:__shopee_partner_website_x_token_live|token)=([^;]+)/);if(m){try{var p=m[1].split('.')[1];p+='===='.slice(0,(4-p.length%4)%4);var j=JSON.parse(atob(p.replace(/-/g,'+').replace(/_/g,'/')));if(j.token&&j.token.startsWith('B:'))t=j.token;}catch(e){}}}if(!t){var d=window.injectData||window['injectData'];if(d&&d.User&&d.User.token&&d.User.token.startsWith('B:'))t=d.User.token;}if(t){window.open('${CONFIG.API_URL}/dashboard/?import_token='+encodeURIComponent(t),'_blank');}else{alert('⚠️ Token ShopeePay belum ditemukan!\\n\\nPastikan Anda sudah login ke https://partner.shopee.co.id/ terlebih dahulu.');}})();`;
+}
+
+function setupBookmarkletLinks() {
+  const code = getBookmarkletCode();
+  document.querySelectorAll(".bookmarklet-drag-link").forEach(el => {
+    el.setAttribute("href", code);
+  });
+}
+
+function copyBookmarkletCode(btn) {
+  copyToClipboard(getBookmarkletCode(), btn);
+}
+
+function copyConsoleCode(btn) {
+  const code = `(()=>{let t=null;try{for(let i=0;i<localStorage.length;i++){let v=localStorage.getItem(localStorage.key(i));if(v&&v.includes('"token":"B:')){let m=v.match(/"token"\\s*:\\s*"(B:[^"]+)"/);if(m&&m[1]){t=m[1];break;}}}}catch(e){}if(!t){try{for(let i=0;i<sessionStorage.length;i++){let v=sessionStorage.getItem(sessionStorage.key(i));if(v&&v.includes('"token":"B:')){let m=v.match(/"token"\\s*:\\s*"(B:[^"]+)"/);if(m&&m[1]){t=m[1];break;}}}}catch(e){}}if(!t){alert('⚠️ Token tidak ditemukan di localStorage. Pastikan Anda sudah login di partner.shopee.co.id');return;}window.open('${CONFIG.API_URL}/dashboard/?import_token='+encodeURIComponent(t),'_blank');})()`;
+  copyToClipboard(code, btn);
+}
+
+
+// ==========================================
+// 9. Settings Modal
+// ==========================================
+function setupSettingsModal() {
+  const modal = document.getElementById("settings-modal");
+  const openBtn = document.getElementById("btn-open-settings");
+  const closeBtn = document.getElementById("btn-close-settings");
+
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      document.getElementById("setting-api-url").value = CONFIG.API_URL;
+      document.getElementById("setting-admin-key").value = CONFIG.ADMIN_KEY;
+      modal.classList.add("active");
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => modal.classList.remove("active"));
+  }
+
+  const saveBtn = document.getElementById("btn-save-settings");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      CONFIG.API_URL = document.getElementById("setting-api-url").value.trim().replace(/\/$/, "");
+      CONFIG.ADMIN_KEY = document.getElementById("setting-admin-key").value.trim();
+
+      localStorage.setItem("paymentg_api_url", CONFIG.API_URL);
+      localStorage.setItem("paymentg_admin_key", CONFIG.ADMIN_KEY);
+
+      modal.classList.remove("active");
+      showToast("Pengaturan API berhasil disimpan!");
+      loadAllData();
+    });
+  }
+}
+
+function togglePasswordVisibility(fieldId, btn) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  if (input.type === "password") {
+    input.type = "text";
+    btn.innerText = "🔒";
+  } else {
+    input.type = "password";
+    btn.innerText = "👁️";
+  }
+}
+
+function resetSettingsToDefault() {
+  if (!confirm("Kembalikan URL Backend ke asal (" + DEFAULT_BACKEND + ")?")) return;
+  document.getElementById("setting-api-url").value = DEFAULT_BACKEND;
+  document.getElementById("setting-admin-key").value = "adm_secret_paymentg_2026";
+  showToast("Pengaturan dikembalikan ke default");
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.remove("active");
+}
+
+// Auto Refresh Timers
+function startAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(() => {
+    loadAllData();
+  }, 5000);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = null;
+}

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>PaymentG Shopee Sync</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 320px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 14px;
+      font-size: 13px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .header h1 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .badge {
+      font-size: 10px;
+      background: #0369a1;
+      color: #e0f2fe;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .dot.green { background: #10b981; }
+    .dot.red { background: #ef4444; }
+    .label { font-size: 11px; color: #94a3b8; font-weight: 500; }
+    .token-val {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      color: #cbd5e1;
+      word-break: break-all;
+      background: #0f172a;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #334155;
+      margin-top: 4px;
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 4px;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #f8fafc;
+      padding: 6px 8px;
+      font-size: 11px;
+    }
+    input[type="text"]:focus, input[type="password"]:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+    .btn {
+      width: 100%;
+      background: #0284c7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #0369a1; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+    .alert {
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      margin-top: 10px;
+      display: none;
+    }
+    .alert.success { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #059669; }
+    .alert.error { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #dc2626; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>PaymentG Sync</h1>
+    <span class="badge">v1.0</span>
+  </div>
+
+  <div class="card">
+    <div class="status-row">
+      <div style="display:flex; align-items:center;">
+        <span id="status-dot" class="dot red"></span>
+        <span id="status-text" style="font-weight:600;">Memeriksa Sesi...</span>
+      </div>
+    </div>
+    <div class="label">Shopee Token Terdeteksi:</div>
+    <div id="token-box" class="token-val">Belum terdeteksi (Login ke partner.shopee.co.id)</div>
+  </div>
+
+  <div class="card">
+    <div class="form-group">
+      <label>VPS Server Endpoint</label>
+      <input type="text" id="cfg-url" placeholder="https://paymentg.syukurapi.online">
+    </div>
+    <div class="form-group">
+      <label>Admin Secret Key</label>
+      <input type="password" id="cfg-key" placeholder="pg_ZZio-...">
+    </div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="cfg-autosync" checked>
+      <span>Otomatis sinkronisasi di latar belakang</span>
+    </label>
+  </div>
+
+  <button id="btn-sync" class="btn">
+    <span>⚡</span> Sinkronkan Token Sekarang
+  </button>
+
+  <div id="alert-box" class="alert"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

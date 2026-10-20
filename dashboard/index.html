@@ -219,75 +219,103 @@
 
         <!-- Guide Tab Selector -->
         <div class="guide-tabs-nav">
-          <button class="guide-tab-btn active" onclick="switchGuideTab('guide-tab-web', this)">
-            <span>✏️</span> Cara 1: Tempel via Web Ini (10 Detik)
+          <button class="guide-tab-btn active" onclick="switchGuideTab('guide-tab-bookmarklet', this)">
+            <span>⚡</span> Opsi 1: Bookmarklet 1-Klik (Rekomendasi)
+          </button>
+          <button class="guide-tab-btn" onclick="switchGuideTab('guide-tab-extension', this)">
+            <span>🧩</span> Opsi 2: Ekstensi Chrome (Otomatis)
           </button>
           <button class="guide-tab-btn" onclick="switchGuideTab('guide-tab-tampermonkey', this)">
-            <span>🧩</span> Cara 2: Userscript Browser (Otomatis)
-          </button>
-          <button class="guide-tab-btn" onclick="switchGuideTab('guide-tab-cli', this)">
-            <span>💻</span> Cara 3: Terminal / Task Scheduler PC
+            <span>🛠️</span> Opsi 3: Userscript V2 & Manual
           </button>
         </div>
 
-        <!-- Guide Content 1: Web Paste -->
-        <div id="guide-tab-web" class="guide-tab-panel active">
+        <!-- Guide Content 1: Bookmarklet Web Bridge -->
+        <div id="guide-tab-bookmarklet" class="guide-tab-panel active">
           <div class="steps-flow">
             <div class="step-item">
               <div class="step-num">1</div>
               <div class="step-text">
-                <div class="step-title">Buka Shopee Partner di Browser Anda</div>
-                <div class="step-desc">Login ke <a href="https://partner.shopee.co.id/shopeepay-portal/transactions" target="_blank" style="color: var(--primary); font-weight: 600;">partner.shopee.co.id</a> dari laptop / komputer Anda.</div>
+                <div class="step-title">Simpan Tombol Bookmarklet ke Browser Anda</div>
+                <div class="step-desc">Seret tombol biru di bawah ini ke <b>Bookmarks Bar</b> browser Anda (atau klik <i>Salin Kode</i>):</div>
               </div>
             </div>
             <div class="step-item">
               <div class="step-num">2</div>
               <div class="step-text">
-                <div class="step-title">Ambil Token (B:...)</div>
-                <div class="step-desc">Salin string token yang diawali <code>B:</code> dari Cookie JWT atau cukup gunakan tombol Bookmarklet kami.</div>
+                <div class="step-title">Buka Portal Shopee Partner</div>
+                <div class="step-desc">Login ke <a href="https://partner.shopee.co.id/shopeepay-portal/transactions" target="_blank" style="color: var(--primary); font-weight: 600;">partner.shopee.co.id</a> dari laptop / komputer Anda.</div>
               </div>
             </div>
             <div class="step-item">
               <div class="step-num">3</div>
               <div class="step-text">
-                <div class="step-title">Klik Tombol "Import Token Baru"</div>
-                <div class="step-desc">Tempel token di jendela modal dashboard ini, lalu klik <b>Simpan ke VPS</b>. Token langsung aktif seketika tanpa perlu restart server VPS!</div>
+                <div class="step-title">Klik Bookmarklet Tersebut (1-Klik)</div>
+                <div class="step-desc">Script otomatis mengambil token dari sesi aktif dan membuka dashboard PaymentG dengan status sukses hijau! (100% bebas blokir CSP dan tanpa instalasi aplikasi apapun).</div>
               </div>
             </div>
           </div>
-          <div style="margin-top: 14px;">
-            <button class="btn btn-primary btn-sm" onclick="openTokenImportModal()">
-              ✏️ Buka Modal Import Token Sekarang
-            </button>
-          </div>
-        </div>
-
-        <!-- Guide Content 2: Tampermonkey -->
-        <div id="guide-tab-tampermonkey" class="guide-tab-panel">
-          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;">
-            Pasang userscript kami di browser Chrome/Edge laptop Anda. Setiap kali Anda membuka tab Shopee Partner, script otomatis menyedot token aktif dan mengirimkannya ke server VPS Anda di latar belakang.
-          </p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <a href="/dashboard/paymentg-shopee-sync.user.js" target="_blank" class="btn btn-primary btn-sm" style="text-decoration: none;">
-              🧩 Pasang Script Tampermonkey
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px;">
+            <a href="javascript:void(0)" class="bookmarklet-drag-link btn btn-primary btn-sm" style="text-decoration: none;" title="Seret tombol ini ke Bookmarks Bar Chrome/Edge">
+              ⚡ Seret ke Bookmarks Bar
             </a>
             <button class="btn btn-secondary btn-sm" onclick="copyBookmarkletCode(this)">
-              📋 Salin Kode Bookmarklet 1-Klik
+              📋 Salin Kode Bookmarklet
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="copyConsoleCode(this)">
+              💻 Salin Script Console F12 (1-Baris)
             </button>
           </div>
         </div>
 
-        <!-- Guide Content 3: CLI / Task Scheduler -->
-        <div id="guide-tab-cli" class="guide-tab-panel">
-          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
-            Jalankan perintah ini di PowerShell atau CMD komputer lokal Anda untuk memperbarui token VPS:
+        <!-- Guide Content 2: Chrome Extension -->
+        <div id="guide-tab-extension" class="guide-tab-panel">
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;">
+            Ekstensi mandiri (Manifest V3) siap pakai tanpa perlu Tampermonkey atau Python. Otomatis membaca cookie <code>HttpOnly</code> dan menyinkronkan token ke VPS setiap kali Anda membuka Shopee Partner:
           </p>
-          <div style="position: relative; margin-bottom: 12px;">
-            <pre class="env-code-block" style="padding: 12px; margin: 0; font-size: 12px; background: #1e293b; color: #38bdf8;">python refresh_token.py --setup</pre>
+          <div class="steps-flow" style="margin-bottom: 14px;">
+            <div class="step-item">
+              <div class="step-num">1</div>
+              <div class="step-text">
+                <div class="step-title">Unduh & Ekstrak File ZIP</div>
+                <div class="step-desc">Unduh paket ekstensi di bawah ini lalu ekstrak foldernya di komputer Anda.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">2</div>
+              <div class="step-text">
+                <div class="step-title">Buka Menu Ekstensi Chrome / Edge</div>
+                <div class="step-desc">Ketik <code>chrome://extensions</code> di browser, lalu nyalakan toggle <b>Developer Mode</b> di pojok kanan atas.</div>
+              </div>
+            </div>
+            <div class="step-item">
+              <div class="step-num">3</div>
+              <div class="step-text">
+                <div class="step-title">Klik "Load Unpacked"</div>
+                <div class="step-desc">Pilih folder ekstensi yang sudah diekstrak tadi. Selesai! Ekstensi aktif otomatis di latar belakang.</div>
+              </div>
+            </div>
           </div>
-          <p style="font-size: 12px; color: var(--text-muted);">
-            Browser Chromium lokal akan terbuka. Silakan scan QR login di ponsel Anda. Begitu login sukses, token baru otomatis dikirimkan ke VPS dan browser menutup sendiri!
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="/dashboard/paymentg-sync-extension.zip" download class="btn btn-primary btn-sm" style="text-decoration: none;">
+              📦 Download Ekstensi Chrome (.zip)
+            </a>
+          </div>
+        </div>
+
+        <!-- Guide Content 3: Tampermonkey & Manual -->
+        <div id="guide-tab-tampermonkey" class="guide-tab-panel">
+          <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;">
+            Userscript Tampermonkey v2.0 yang telah diperbarui dengan multi-hook (memindai <code>localStorage</code>, cookie JWT, dan menyadap API Shopee).
           </p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+            <a href="/dashboard/paymentg-shopee-sync.user.js" target="_blank" class="btn btn-primary btn-sm" style="text-decoration: none;">
+              🧩 Pasang Script Tampermonkey V2
+            </a>
+            <button class="btn btn-secondary btn-sm" onclick="openTokenImportModal()">
+              ✏️ Tempel Token Manual
+            </button>
+          </div>
         </div>
       </div>
 
@@ -560,7 +588,7 @@
               <ol style="margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.6; color: var(--text-muted);">
                 <li>Buka portal <a href="https://partner.shopee.co.id/shopeepay-portal/transactions" target="_blank" style="color: var(--primary); font-weight: 600;">partner.shopee.co.id</a> di browser Anda dan pastikan login.</li>
                 <li>Buka Developer Tools (tekan <code>F12</code>) &rarr; tab <b>Application</b> &rarr; <b>Cookies</b> &rarr; cari cookie dengan nilai berawalan <code>B:</code>, lalu salin seluruhnya.</li>
-                <li><i>Atau lebih cepat:</i> Gunakan ekstensi <b>Tampermonkey</b> dengan script auto-sync kami yang otomatis mengirimkannya.</li>
+                <li><i>Paling mudah & instan:</i> Gunakan <b>Bookmarklet 1-Klik</b> atau <b>Ekstensi Chrome</b> kami pada modal panduan auto-sync untuk menyedot token dalam 1 klik tanpa perlu F12.</li>
               </ol>
             </div>
           </div>
@@ -601,38 +629,46 @@
         <!-- 3 Pilihan Auto-Sync -->
         <div class="card" style="border: 1px solid var(--border); padding: 16px; box-shadow: none;">
           <h4 style="font-size: 13.5px; font-weight: 700; margin-bottom: 6px; color: var(--text-main);">
-            1️⃣ Windows Silent Auto-Sync (Rekomendasi)
+            ⚡ 1️⃣ Bookmarklet 1-Klik Web-Bridge (Paling Instan & Rekomendasi)
           </h4>
-          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px;">
-            Task Scheduler di komputer Anda otomatis memperbarui token setiap 4 jam secara hening di latar belakang (0 pop-up).
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
+            Tanpa perlu instalasi apapun. Buka tab <b>partner.shopee.co.id</b> lalu klik tombol bookmarklet ini di browser Anda:
           </p>
-          <div style="font-size: 11.5px; background: var(--bg-subtle); padding: 8px 12px; border-radius: 6px; font-family: monospace; color: var(--text-main);">
-            Status Task: <b>PaymentG_Shopee_AutoSync</b> (Setiap 4 Jam)
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="javascript:void(0)" class="bookmarklet-drag-link btn btn-primary btn-sm" style="text-decoration: none;">
+              ⚡ Seret ke Bookmarks Bar
+            </a>
+            <button class="btn btn-secondary btn-sm" onclick="copyBookmarkletCode(this)">
+              📋 Salin Kode Bookmarklet
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="copyConsoleCode(this)">
+              💻 Salin Script Console F12
+            </button>
           </div>
         </div>
 
         <div class="card" style="border: 1px solid var(--border); padding: 16px; box-shadow: none;">
           <h4 style="font-size: 13.5px; font-weight: 700; margin-bottom: 6px; color: var(--text-main);">
-            2️⃣ Tampermonkey Userscript (Browser Chrome/Edge)
+            🧩 2️⃣ Ekstensi Chrome Mandiri (Otomatis di Latar Belakang)
           </h4>
           <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
-            Setiap kali Anda membuka tab Shopee Partner di browser, script otomatis menyedot token dan mengirimkannya ke VPS.
+            Ekstensi ringan bebas CSP & bisa baca cookie <code>HttpOnly</code>. Otomatis sync setiap kali tab Shopee dibuka.
           </p>
-          <a href="/dashboard/paymentg-shopee-sync.user.js" target="_blank" class="btn btn-primary btn-sm" style="display: inline-flex; text-decoration: none; width: fit-content;">
-            🧩 Pasang Tampermonkey Script (1-Klik)
+          <a href="/dashboard/paymentg-sync-extension.zip" download class="btn btn-primary btn-sm" style="display: inline-flex; text-decoration: none; width: fit-content;">
+            📦 Download Ekstensi Chrome (.zip)
           </a>
         </div>
 
         <div class="card" style="border: 1px solid var(--border); padding: 16px; box-shadow: none;">
           <h4 style="font-size: 13.5px; font-weight: 700; margin-bottom: 6px; color: var(--text-main);">
-            3️⃣ 1-Click Bookmarklet Browser
+            🛠️ 3️⃣ Tampermonkey Userscript V2 (Multi-Hook)
           </h4>
           <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px;">
-            Simpan bookmarklet ini di browser Anda, lalu klik kapan saja saat berada di tab Shopee Partner:
+            Bagi pengguna Tampermonkey. Versi 2.0 kini memindai <code>localStorage</code>, cookie JWT, dan menyadap API Shopee.
           </p>
-          <button class="btn btn-secondary btn-sm" onclick="copyBookmarkletCode(this)">
-            📋 Salin Kode Bookmarklet
-          </button>
+          <a href="/dashboard/paymentg-shopee-sync.user.js" target="_blank" class="btn btn-secondary btn-sm" style="display: inline-flex; text-decoration: none; width: fit-content;">
+            🧩 Pasang Tampermonkey Script V2
+          </a>
         </div>
 
         <div class="modal-footer flex-between" style="margin-top: 8px;">

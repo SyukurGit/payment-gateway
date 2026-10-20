@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "PaymentG - Shopee Token Sync",
+  "version": "1.0.0",
+  "description": "Ekstensi sinkronisasi sesi ShopeePay Partner ke PaymentG VPS secara instan & otomatis.",
+  "permissions": [
+    "cookies",
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*.shopee.co.id/*",
+    "*://*.syukurapi.online/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://partner.shopee.co.id/*",
+        "https://partner.business.accounts.shopee.co.id/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "PaymentG Shopee Token Sync"
+  }
+}

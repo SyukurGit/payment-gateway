@@ -102,6 +102,7 @@ type CreateAppResponse struct {
 
 type UpdateTokenRequest struct {
 	Token string `json:"token" binding:"required"`
+	Force bool   `json:"force"`
 }
 
 type HealthResponse struct {

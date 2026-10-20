@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,18 +15,23 @@ import (
 	"paymentg/internal/config"
 	"paymentg/internal/database"
 	"paymentg/internal/model"
+	"paymentg/internal/service"
 	"paymentg/internal/util"
 )
 
 type AdminHandler struct {
-	db  *database.DB
-	cfg *config.Config
+	db           *database.DB
+	cfg          *config.Config
+	shopeeClient *service.ShopeeClient
+	poller       *service.Poller
 }
 
-func NewAdminHandler(db *database.DB, cfg *config.Config) *AdminHandler {
+func NewAdminHandler(db *database.DB, cfg *config.Config, shopeeClient *service.ShopeeClient, poller *service.Poller) *AdminHandler {
 	return &AdminHandler{
-		db:  db,
-		cfg: cfg,
+		db:           db,
+		cfg:          cfg,
+		shopeeClient: shopeeClient,
+		poller:       poller,
 	}
 }
 
@@ -35,13 +42,41 @@ func (h *AdminHandler) UpdateToken(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.SetConfig("shopee_token", req.Token); err != nil {
+	token := strings.TrimSpace(req.Token)
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Token tidak boleh kosong"})
+		return
+	}
+
+	// Live validation with ShopeePay API if client is available and not forced
+	if h.shopeeClient != nil && !req.Force {
+		_, err := h.shopeeClient.FetchTransactions(token)
+		if err != nil {
+			if h.poller != nil {
+				h.poller.SetTokenValid(false, err.Error())
+			}
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   fmt.Sprintf("Shopee menolak token: %v", err),
+			})
+			return
+		}
+	}
+
+	if err := h.db.SetConfig("shopee_token", token); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "failed to save token"})
 		return
 	}
 
 	h.db.SetConfig("shopee_token_updated_at", time.Now().UTC().Format(time.RFC3339))
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": "token updated successfully"})
+	if h.poller != nil {
+		h.poller.SetTokenValid(true, "")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    "Token ShopeePay valid dan berhasil disimpan!",
+	})
 }
 
 func (h *AdminHandler) CreateApp(c *gin.Context) {

@@ -44,14 +44,15 @@ func (p *Poller) Start(ctx context.Context) {
 			p.tokenValid = true
 			p.lastPollAt = time.Now()
 			p.lastPollOK = true
+			p.mu.Unlock()
 			log.Println("[Poller] Initial token check OK (ShopeePay login aktif)")
 		} else {
 			p.tokenValid = false
 			p.tokenError = err.Error()
+			p.mu.Unlock()
 			log.Printf("[Poller] Initial token check failed: %v", err)
 			p.triggerTokenRefresh()
 		}
-		p.mu.Unlock()
 	}
 
 	ticker := time.NewTicker(p.interval)
